@@ -1,0 +1,1 @@
+export declare const GENERATION_LIVENESS_INTERVAL_MS: 30000;

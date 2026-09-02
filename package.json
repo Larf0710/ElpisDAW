@@ -1,0 +1,27 @@
+{
+  "name": "humstudio",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "engine": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Build-WindowsDirectoryPicker.ps1 && node engine/server.mjs",
+    "runtime:fluidsynth": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Install-FluidSynthRuntime.ps1",
+    "runtime:fluidsynth:verify": "node scripts/Verify-FluidSynthRuntime.mjs",
+    "launch": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Start-HumStudio.ps1",
+    "test": "vitest run",
+    "build": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Build-WindowsDirectoryPicker.ps1 && tsc && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11",
+    "vitest": "2.1.9"
+  }
+}

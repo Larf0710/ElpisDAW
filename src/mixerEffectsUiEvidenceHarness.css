@@ -1,0 +1,57 @@
+.mixer-ui-evidence-shell {
+  min-height: 100vh;
+  padding: 16px;
+  background: var(--bg);
+}
+
+.mixer-ui-evidence-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  padding: 8px;
+  border: 1px solid #38413c;
+  border-radius: 4px;
+  background: #141815;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+.mixer-ui-evidence-controls strong {
+  margin-right: auto;
+  color: #bdd59b;
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+}
+
+.mixer-ui-evidence-controls button {
+  min-height: 30px;
+  padding: 5px 9px;
+  border: 1px solid #4a514a;
+  border-radius: 3px;
+  color: #cdd1c8;
+  background: #1d211e;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.58rem;
+  font-weight: 900;
+}
+
+.mixer-ui-evidence-controls button[aria-pressed="true"] {
+  border-color: #bdd59b;
+  color: #bdd59b;
+}
+
+.mixer-ui-evidence-controls button:focus-visible {
+  outline: 2px solid #bdd59b;
+  outline-offset: 1px;
+}
+
+@media (max-width: 820px) {
+  .mixer-ui-evidence-controls {
+    flex-wrap: wrap;
+  }
+
+  .mixer-ui-evidence-controls strong {
+    flex-basis: 100%;
+  }
+}
