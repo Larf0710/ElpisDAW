@@ -26,8 +26,10 @@ after the Phase 1N candidate review:
 - CI workflow commit: `8d65144a3d27e1316994ae7361c93d368b3eaa9c`
 - Verified `main` CI run: `33591925024` — `Validate Windows source` passed
 - Current dependency-adoption draft PR: `#3`
-- Draft PR head: `1a6142b2af2353bb4aff2d20f27b2737e3a4e8fd`
-- Verified draft PR CI run: `33848290728` — `Validate Windows source` passed
+- Repository-boundary documentation checkpoint: `1a6142b2af2353bb4aff2d20f27b2737e3a4e8fd`
+- Verified documentation-checkpoint CI run: `33848290728` — `Validate Windows source` passed
+- Transitive dependency security checkpoint: `4738025207650f7877bc808c9a0e08296de9fe72`
+- Verified security-checkpoint CI run: `33851973579` — `Validate Windows source` passed
 
 This checkpoint authorizes no tag, end-user release, Provider or model
 redistribution, or binary package.
