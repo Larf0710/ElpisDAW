@@ -32,7 +32,7 @@ describe('ACE-Step Lego Probe fixture', () => {
       ACE_STEP_LEGO_PROBE_CHANNELS *
       2;
 
-    expect(first).toEqual(second);
+    expect(first.equals(second)).toBe(true);
     expect(first.byteLength).toBe(44 + expectedDataBytes);
     expect(first.toString('ascii', 0, 4)).toBe('RIFF');
     expect(first.readUInt32LE(4)).toBe(first.byteLength - 8);
@@ -53,9 +53,8 @@ describe('ACE-Step Lego Probe fixture', () => {
     const manifest = JSON.parse(await readFile(fixture.manifestPath, 'utf8'));
 
     expect(manifest).toEqual(fixture.manifest);
-    expect(await readFile(fixture.guidePath)).toEqual(
-      createAceStepLegoProbeGuideWave(),
-    );
+    const writtenGuide = await readFile(fixture.guidePath);
+    expect(writtenGuide.equals(createAceStepLegoProbeGuideWave())).toBe(true);
     expect(await readFile(fixture.lyricsPath, 'utf8')).toContain(
       'Morning light is calling',
     );

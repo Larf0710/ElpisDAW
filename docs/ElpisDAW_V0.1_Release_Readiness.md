@@ -5,12 +5,34 @@ Status: **MVP FEATURE COMPLETE / RELEASE ACCEPTANCE PENDING**
 Release boundary:
 
 - Source snapshot: derived from one reviewed release-candidate commit
-- Branch: `main`
-- Feature-freeze baseline: `4674972afeaa6767511a17190bded5ad41b1eeed`
-- Repaired implementation checkpoint: `48c0e86b96d5b64db7bc49e515255a1ab537e857`
+- Private evidence branch: `main`
+- Private-history feature-freeze baseline: `4674972afeaa6767511a17190bded5ad41b1eeed`
+- Private-history repaired implementation checkpoint: `48c0e86b96d5b64db7bc49e515255a1ab537e857`
 - Implementation subject: `Fix generated audio clip splitting`
 - Product-visible name: `ElpisDAW`
 - Retained internal and compatibility name: `HumStudio`
+
+The two private-history commit identifiers above are retained evidence labels.
+They are not expected to resolve in the separate public repository.
+
+## Public Source Publication Checkpoint
+
+The separate, history-free source repository was established and verified
+after the Phase 1N candidate review:
+
+- Initial public-source commit: `99afc94841d8545cf9e0ae262b8dfe642243ce68`
+- Initial snapshot contents: `716` files
+- Public `main` checkpoint: `21fb400609d9f5c07aeabf0223560b92b1bac21f`
+- CI workflow commit: `8d65144a3d27e1316994ae7361c93d368b3eaa9c`
+- Verified `main` CI run: `33591925024` — `Validate Windows source` passed
+- Current dependency-adoption draft PR: `#3`
+- Repository-boundary documentation checkpoint: `1a6142b2af2353bb4aff2d20f27b2737e3a4e8fd`
+- Verified documentation-checkpoint CI run: `33848290728` — `Validate Windows source` passed
+- Transitive dependency security checkpoint: `4738025207650f7877bc808c9a0e08296de9fe72`
+- Verified security-checkpoint CI run: `33851973579` — `Validate Windows source` passed
+
+This checkpoint authorizes no tag, end-user release, Provider or model
+redistribution, or binary package.
 
 ## Scope Freeze
 
@@ -153,11 +175,11 @@ Technical compatibility does not grant redistribution permission.
 - [x] Complete the technical manual source-to-candidate diff for the exact Phase 1K evaluated boundary.
 - [x] Specify a production launcher that does not require pnpm or Vite development mode.
 - [x] Specify portable-first packaging and defer the one-click installer until portable acceptance.
-- [ ] Generate and obtain Master approval for the exact public snapshot manifest, transformations, and candidate contents.
+- [x] Generate and obtain Master approval for the exact public snapshot manifest, transformations, and candidate contents.
 - [ ] Enable approved private security and conduct-reporting channels.
 - [ ] Decide contributor-rights governance before accepting public contributions.
 - [ ] Create a separate trademark policy before authorizing official-name, logo, Provider, or Extension claims.
-- [ ] Add and verify the public repository CI workflow.
+- [x] Add and verify the public repository CI workflow.
 - [ ] Re-run and retain the secret, privacy, binary, large-artifact, license, and manual-diff aggregate against the exact final candidate.
 - [ ] Implement and verify the production static UI server and launcher.
 - [ ] Produce the exact release manifest, notices, SBOM, and checksums.
