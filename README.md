@@ -38,14 +38,26 @@ are not included in this repository.
 
 ## Release Status
 
-The private development history used to prepare V0.1 will not be published
-directly because it contains private development metadata. The first public
-source repository will be created from a reviewed, sanitized snapshot with new
-history.
+This repository contains a reviewed, sanitized public source snapshot with new
+history. The private development history used to prepare V0.1 is not published
+because it contains private development metadata.
 
 The first planned binary is a portable Windows 11 x64 prerelease. A one-click
 installer is deferred until the portable package passes clean-machine, upgrade,
 uninstall, rollback, licensing, and data-safety acceptance.
+
+## Repository Boundary
+
+This repository contains the public ElpisDAW product source and the build and
+test tooling required to inspect it. Release-control automation used to
+assemble and audit sanitized source snapshots is maintained separately and is
+intentionally not published here.
+
+Retained audit evidence, private development history, local paths, Provider
+environments, model weights, SoundFonts, generated media, and machine-specific
+artifacts are outside this repository. Their absence does not expand what may
+be bundled: any binary release must pass separate packaging, licensing,
+clean-machine, security, rollback, and data-safety acceptance.
 
 ## Development Workflow
 
