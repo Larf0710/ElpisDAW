@@ -16,7 +16,7 @@ import {
 const DEFAULT_PROBE_SCRIPT_PATH = fileURLToPath(
   new URL('./aceStepRuntimeProbe.py', import.meta.url),
 );
-const DEFAULT_TIMEOUT_MS = 30_000;
+const DEFAULT_TIMEOUT_MS = 120_000;
 const MAX_OUTPUT_BYTES = 64 * 1_024;
 const PROBE_VERSION = '1';
 const EXPECTED_ARCHITECTURES = new Set(['AMD64', 'x86_64']);

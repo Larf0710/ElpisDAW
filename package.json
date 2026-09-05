@@ -6,11 +6,13 @@
   "scripts": {
     "dev": "vite",
     "engine": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Build-WindowsDirectoryPicker.ps1 && node engine/server.mjs",
+    "build:launcher": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Build-ElpisDawLauncher.ps1",
     "runtime:fluidsynth": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Install-FluidSynthRuntime.ps1",
     "runtime:fluidsynth:verify": "node scripts/Verify-FluidSynthRuntime.mjs",
     "launch": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Start-HumStudio.ps1",
+    "package:portable": "node scripts/Materialize-ElpisDawPortablePackage.mjs",
     "test": "vitest run",
-    "build": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Build-WindowsDirectoryPicker.ps1 && tsc && vite build",
+    "build": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Build-WindowsDirectoryPicker.ps1 && powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Build-ElpisDawLauncher.ps1 && tsc && vite build",
     "preview": "vite preview"
   },
   "dependencies": {

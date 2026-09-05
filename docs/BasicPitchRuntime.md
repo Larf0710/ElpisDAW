@@ -176,16 +176,21 @@ name.
 
 | Component | License record | Distribution state |
 | --- | --- | --- |
-| Basic Pitch code | Apache-2.0; retain `LICENSE` and `NOTICE` | Not approved |
-| Bundled `nmp.onnx` model | Apache-2.0 basis from the tagged repository and wheel distribution; no separate model license file was found | Not approved |
-| ONNX Runtime 1.23.2 | MIT | Not approved |
-| Transitive Python dependencies | Individual licenses listed in the Basic Pitch notice and installed distributions | Review pending |
+| Basic Pitch code | Apache-2.0; retain `LICENSE` and `NOTICE` | `USER_SUPPLIED`; not bundled in V0.1 |
+| `nmp.onnx` model | Apache-2.0 basis from the tagged repository and wheel distribution; no separate model license file was found | `USER_SUPPLIED`; future bundling blocked |
+| ONNX Runtime 1.23.2 | MIT plus installed third-party notices | `USER_SUPPLIED`; not bundled in V0.1 |
+| Transitive Python dependencies | `40` pinned distributions and `63` installed license or notice files reviewed | V0.1 `USER_SUPPLIED` boundary complete; future bundling blocked |
 
 The model license entry is an explicit repository-distribution inference, not a
-claim that a separate model license exists. A packaging slice must re-audit the
-tagged source, wheel contents, transitive distributions, and required notices
-before copying any runtime or model into a HumStudio distribution. Vocadito test
-audio mentioned by Basic Pitch's notice is not used or bundled.
+claim that a separate model license exists. The V0.1 redistribution review
+matched all `40` pinned package identities and versions, hashed `63` installed
+license or notice files, and retained a path-free evidence report with SHA-256
+`5bb1d366f8bc0d5e1f8326dfe742a05259ffab383cede8e48e032c83be94f4b9`.
+The review accepts only the non-bundled `USER_SUPPLIED` boundary. A future
+packaging slice must re-audit the exact source, wheel contents, native files,
+transitive distributions, and required notices before copying any runtime or
+model into an ElpisDAW distribution. Vocadito test audio mentioned by Basic
+Pitch's notice is not used or bundled.
 
 Official references:
 

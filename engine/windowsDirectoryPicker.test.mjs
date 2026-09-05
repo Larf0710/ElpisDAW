@@ -2,12 +2,29 @@ import { describe, expect, it, vi } from 'vitest';
 import { existsSync } from 'node:fs';
 
 import {
+  resolveWindowsDirectoryPickerExecutablePath,
   runPickerProcess,
   selectWindowsProjectRoot,
   WINDOWS_DIRECTORY_PICKER_EXECUTABLE_PATH,
 } from './windowsDirectoryPicker.mjs';
 
 describe('selectWindowsProjectRoot', () => {
+  it('uses an absolute production helper override without changing the development fallback', () => {
+    expect(resolveWindowsDirectoryPickerExecutablePath({})).toBe(
+      WINDOWS_DIRECTORY_PICKER_EXECUTABLE_PATH,
+    );
+    expect(
+      resolveWindowsDirectoryPickerExecutablePath({
+        HUMSTUDIO_DIRECTORY_PICKER_PATH: 'C:\\ElpisDAW\\native\\HumStudio.DirectoryPicker.exe',
+      }),
+    ).toBe('C:\\ElpisDAW\\native\\HumStudio.DirectoryPicker.exe');
+    expect(() =>
+      resolveWindowsDirectoryPickerExecutablePath({
+        HUMSTUDIO_DIRECTORY_PICKER_PATH: 'native/HumStudio.DirectoryPicker.exe',
+      }),
+    ).toThrow('ElpisDAW directory picker path must be absolute.');
+  });
+
   it('runs the native Windows picker and returns the selected path', async () => {
     const runPicker = vi.fn(async (executablePath) => {
       expect(executablePath).toBe(WINDOWS_DIRECTORY_PICKER_EXECUTABLE_PATH);

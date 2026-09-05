@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { readFile, unlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const moduleDirectory = dirname(fileURLToPath(import.meta.url));
@@ -13,10 +13,27 @@ export const WINDOWS_DIRECTORY_PICKER_EXECUTABLE_PATH = join(
   'HumStudio.DirectoryPicker.exe',
 );
 
+export function resolveWindowsDirectoryPickerExecutablePath(
+  environment = process.env,
+  fallbackPath = WINDOWS_DIRECTORY_PICKER_EXECUTABLE_PATH,
+) {
+  const configuredPath = environment.HUMSTUDIO_DIRECTORY_PICKER_PATH?.trim();
+
+  if (!configuredPath) {
+    return fallbackPath;
+  }
+
+  if (!isAbsolute(configuredPath)) {
+    throw new Error('ElpisDAW directory picker path must be absolute.');
+  }
+
+  return resolve(configuredPath);
+}
+
 export async function selectWindowsProjectRoot({
   platform = process.platform,
   runPicker = runPickerProcess,
-  pickerExecutablePath = WINDOWS_DIRECTORY_PICKER_EXECUTABLE_PATH,
+  pickerExecutablePath = resolveWindowsDirectoryPickerExecutablePath(),
 } = {}) {
   if (platform !== 'win32') {
     throw new Error('ElpisDAW Project Root selection currently requires Windows.');

@@ -22,10 +22,15 @@ after the Phase 1N candidate review:
 
 - Initial public-source commit: `99afc94841d8545cf9e0ae262b8dfe642243ce68`
 - Initial snapshot contents: `716` files
-- Public `main` checkpoint: `21fb400609d9f5c07aeabf0223560b92b1bac21f`
+- Public `main` checkpoint: `462bd1f625f55a262b2c56efbfd0cd65673610bb`
 - CI workflow commit: `8d65144a3d27e1316994ae7361c93d368b3eaa9c`
 - Verified `main` CI run: `33591925024` — `Validate Windows source` passed
-- Current dependency-adoption draft PR: `#3`
+- Merged dependency-adoption PR: `#3`
+- Dependency-adoption head: `7154efd75cef34c23fac424a8a2a1f35cceb6bb2`
+- Dependency-adoption merge commit: `462bd1f625f55a262b2c56efbfd0cd65673610bb`
+- Verified post-merge `main` CI run: `33854272449` — `Validate Windows source` passed in `3m 54s`
+- Post-merge Dependabot state: `0` open alerts and `13` closed alerts
+- Post-merge pull-request state: `0` open and `3` closed; Dependabot closed superseded PRs `#1` and `#2`
 - Repository-boundary documentation checkpoint: `1a6142b2af2353bb4aff2d20f27b2737e3a4e8fd`
 - Verified documentation-checkpoint CI run: `33848290728` — `Validate Windows source` passed
 - Transitive dependency security checkpoint: `4738025207650f7877bc808c9a0e08296de9fe72`
@@ -84,6 +89,7 @@ Public release materials included in the source snapshot:
 - [Security policy](../SECURITY.md)
 - [Contributing policy](../CONTRIBUTING.md)
 - [Community code of conduct](../CODE_OF_CONDUCT.md)
+- [Trademark policy](../TRADEMARKS.md)
 
 Internal release-control assessments, source-boundary procedures,
 provisional license matrices, and Windows distribution specifications are
@@ -134,16 +140,20 @@ The ElpisDAW Core license decision is complete. The optional copyright-holder
 notice is intentionally omitted during the pre-public phase. The overall gate
 remains open because the third-party redistribution inventory is not complete.
 
-- [x] FluidSynth runtime and default SoundFont retain explicit license and source records.
+- [x] Confirm that the V0.1 portable Core excludes FluidSynth runtime bytes and repair the local installer to omit unused SDL3, hash-verify its three binaries, and retain separate FluidSynth and libsndfile LGPL texts.
+- [ ] Complete the static codec license, exact-source, LGPL replacement, and notice set before any FluidSynth bundling or managed download.
+- [x] Retain the default SoundFont license, source inventory, and pinned hashes.
 - [x] Master selected `MPL-2.0` for the ElpisDAW Core.
 - [x] Install the official, unmodified MPL-2.0 text as the root `LICENSE`.
 - [x] Record the current Core source boundary without bulk file-header changes.
 - [x] Record the provisional bundled/external Provider distribution boundary.
 - [x] Record Master's decision to omit an optional public copyright-holder notice for now without inventing an identity.
 - [x] Verify the exact Phase 1J source-candidate license/provenance and Windows npm metadata boundary.
-- [ ] Complete the Basic Pitch model and transitive dependency redistribution review.
-- [ ] Complete the Stable Audio 3 weights and transitive dependency redistribution review.
-- [ ] Record the ACE-Step code, model, weights, and transitive dependency distribution terms.
+- [x] Complete the Basic Pitch model and transitive dependency review for the V0.1 `USER_SUPPLIED` boundary; keep all future bundling blocked.
+- [x] Require the exact Stable Audio 3 Community License as a hash-verified portable-build input, package its required NOTICE, and add prominent `Powered by Stability AI`, license, registration, and Acceptable Use Policy links to the product UI and documentation.
+- [ ] Record the Stable Audio 3 commercial registration or Enterprise-license disposition for the intended V0.1 release use; the `USER_SUPPLIED` external-byte boundary is reviewed and all bundling remains blocked.
+- [x] Record the ACE-Step code, model, support weights, and transitive dependency boundary for V0.1 `USER_SUPPLIED` operation; keep all bundling and unverified variants blocked.
+- [x] Publish and package the ACE-Step generated-output disclosure policy without making commercial-rights, originality, attribution, publication, monetization, or model-training assurances.
 - [ ] Produce the final third-party notices and bundled-asset inventory.
 
 Technical compatibility does not grant redistribution permission.
@@ -177,12 +187,23 @@ Technical compatibility does not grant redistribution permission.
 - [x] Specify portable-first packaging and defer the one-click installer until portable acceptance.
 - [x] Generate and obtain Master approval for the exact public snapshot manifest, transformations, and candidate contents.
 - [ ] Enable approved private security and conduct-reporting channels.
-- [ ] Decide contributor-rights governance before accepting public contributions.
-- [ ] Create a separate trademark policy before authorizing official-name, logo, Provider, or Extension claims.
+- [x] Select DCO 1.1 sign-off as the contributor-rights policy while keeping public contribution intake closed.
+- [x] Add a separate pre-public trademark policy for official-name, logo, Provider, and Extension claims.
 - [x] Add and verify the public repository CI workflow.
 - [ ] Re-run and retain the secret, privacy, binary, large-artifact, license, and manual-diff aggregate against the exact final candidate.
-- [ ] Implement and verify the production static UI server and launcher.
-- [ ] Produce the exact release manifest, notices, SBOM, and checksums.
+- [x] Implement and verify fail-closed production static UI serving through the Local Engine.
+- [x] Implement and verify the native production launcher and child-process lifecycle with an exact-package automated smoke.
+- [x] Implement and test deterministic portable-package materialization with pinned runtime provenance, notices, SBOM, exact manifest validation, and atomic output.
+- [x] Materialize and independently verify the current internal portable candidate from exact source commit `058c2046c8c2fe471e238656f5ecd0bc0439ad7b`.
+- [x] Seal the internal candidate twice as a byte-identical deterministic ZIP with matching external SHA-256 and exact extracted-package validation.
+- [x] Pass silent visible Edge app-mode QA from the extracted ZIP, including Engine readiness, empty browser warning/error capture, survival after Edge close, and child cleanup after launcher termination.
+- [ ] Exercise `Open ElpisDAW` and `Exit ElpisDAW` directly through the Windows notification-area menu.
+- [x] Add a fail-closed clean-machine preflight runner for sealed ZIP checksum, archive topology, extraction-path, signature, packaged-runtime, launcher, Engine, alternate-port, and path-free evidence checks.
+- [x] Verify the preflight runner against the exact sealed internal ZIP across normal, spaced, and non-ASCII extraction paths, occupied-port fallback, corrupted-checksum rejection, unsigned-native rejection, and exact temporary cleanup.
+- [x] Add a staged Authenticode materialization boundary with pinned SignTool provenance, explicit certificate selection, RFC 3161 timestamping, post-signature verification, and fail-closed evidence validation.
+- [x] Materialize, seal twice, and preflight the exact post-signing-gate unsigned regression candidate; verify missing-certificate failure publishes no package or staging residue.
+- [ ] Materialize and accept the release-candidate package with the reconfirmed supported Node.js runtime and prebuilt native helpers.
+- [ ] Reproduce the exact release manifest, notices, SBOM, and checksums against the accepted release candidate.
 - [ ] Pass clean-machine Windows 11 x64 acceptance.
 - [ ] Decide and verify Authenticode signing for public binaries.
 - [ ] Verify upgrade, uninstall, data retention, and rollback before building the one-click installer.

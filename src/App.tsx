@@ -14465,6 +14465,43 @@ function PatchTabDetails({
           }
         />
       )}
+      {(canGenerateStableAudio3AudioToAudio ||
+        canGenerateStableAudio3TextToAudio) && (
+        <aside
+          className="stable-audio-attribution"
+          aria-label="Stable Audio 3 licensing"
+        >
+          <strong>Powered by Stability AI</strong>
+          <span>
+            Stable Audio 3 is user-supplied. Separate model terms and use
+            restrictions apply. Commercial use requires registration; an
+            Enterprise license may be required.
+          </span>
+          <nav aria-label="Stable Audio 3 legal links">
+            <a
+              href="https://stability.ai/license"
+              target="_blank"
+              rel="noreferrer"
+            >
+              LICENSE
+            </a>
+            <a
+              href="https://stability.ai/community-license"
+              target="_blank"
+              rel="noreferrer"
+            >
+              REGISTER
+            </a>
+            <a
+              href="https://stability.ai/use-policy"
+              target="_blank"
+              rel="noreferrer"
+            >
+              USE POLICY
+            </a>
+          </nav>
+        </aside>
+      )}
       {canRenderInstrument ? (
         <InstrumentPatchTabControls
           activeResolution={instrumentSoundFontResolution}

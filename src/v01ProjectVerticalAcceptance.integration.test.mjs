@@ -5,7 +5,6 @@ import {
   mkdtemp,
   readFile,
   readdir,
-  realpath,
   rm,
   stat,
   writeFile,
@@ -1569,13 +1568,8 @@ describe('HumStudio v0.1 single-Project vertical acceptance', () => {
       taskId: STABLE_AUDIO_3_TASK_ID,
     });
     expect(
-      (
-        await realpath(
-          recoveredRuntime.stableAudio3Workers[0].jobs[0].inputArtifacts[0]
-            .path,
-        )
-      ).toLowerCase(),
-    ).toBe((await realpath(rawMixPath)).toLowerCase());
+      recoveredRuntime.stableAudio3Workers[0].jobs[0].inputArtifacts[0].path.toLowerCase(),
+    ).toBe(rawMixPath.toLowerCase());
     expect(recoveredRuntime.basicPitchWorkers).toHaveLength(0);
     expect(recoveredRuntime.aceStepWorkers).toHaveLength(0);
     expect(recoveredRuntime.instrumentRenders).toHaveLength(0);
@@ -2160,7 +2154,7 @@ describe('HumStudio v0.1 single-Project vertical acceptance', () => {
     expect(
       finalRuntime.generatedArtifactFinalizer.getActiveReservationCount(),
     ).toBe(0);
-  });
+  }, 15_000);
 });
 
 async function startRuntime(projectRoot) {

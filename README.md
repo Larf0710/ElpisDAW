@@ -36,6 +36,19 @@ External Provider availability, model quality, and redistribution rights are
 separate from ElpisDAW Core readiness. Model weights and Provider environments
 are not included in this repository.
 
+## AI-Generated Outputs
+
+Provider and model terms remain separate from ElpisDAW. Before publishing,
+monetizing, distributing, or reusing AI-generated material, read the
+[AI-Generated Output Notice](./docs/AI_Generated_Output_Notice.md). ElpisDAW
+does not grant or warrant output-specific rights.
+
+**Powered by Stability AI.** Stable Audio 3 support uses a separately obtained
+model under the [Stability AI license](https://stability.ai/license) and
+[Acceptable Use Policy](https://stability.ai/use-policy). Commercial use
+requires [registration with Stability AI](https://stability.ai/community-license),
+and an Enterprise license may be required.
+
 ## Release Status
 
 This repository contains a reviewed, sanitized public source snapshot with new
@@ -104,6 +117,10 @@ for project interactions.
 Do not report security vulnerabilities in a public issue. Follow
 [SECURITY.md](./SECURITY.md) for the current private-reporting status.
 
+The source license and project branding are separate. Read
+[TRADEMARKS.md](./TRADEMARKS.md) before using the ElpisDAW name, logo, or an
+official-status label for a fork, Provider, Extension, product, or service.
+
 ## License
 
 ElpisDAW-owned Core source is licensed under the
@@ -115,4 +132,5 @@ weights, SoundFonts, generated media, or other external material. Their terms
 remain independent.
 
 No trademark permission or claim of official ElpisDAW status is granted by the
-source license.
+source license. The limited referential uses described in
+[TRADEMARKS.md](./TRADEMARKS.md) remain available under that policy.
