@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -134,7 +134,9 @@ describe('SoundFontCatalog', () => {
     });
     const resolved = await catalog.resolve(snapshot.resources[0]);
     expect(resolved.library).toBe('builtin');
-    expect(resolved.absolutePath.toLowerCase()).toBe(resolve(absolutePath).toLowerCase());
+    expect(resolved.absolutePath.toLowerCase()).toBe(
+      (await realpath(absolutePath)).toLowerCase(),
+    );
   });
 
   it('rejects a built-in SoundFont whose pinned bytes changed after listing', async () => {

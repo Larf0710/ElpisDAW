@@ -8,6 +8,7 @@ import {
   mkdtemp,
   readFile,
   readdir,
+  realpath,
   rm,
   writeFile,
 } from 'node:fs/promises';
@@ -312,7 +313,9 @@ describe.runIf(process.platform === 'win32')('ElpisDAW portable package material
 });
 
 async function createFixture() {
-  const root = await mkdtemp(join(tmpdir(), 'elpisdaw-portable-materializer-'));
+  const root = await realpath(
+    await mkdtemp(join(tmpdir(), 'elpisdaw-portable-materializer-')),
+  );
   temporaryDirectories.add(root);
   const repositoryPath = join(root, 'repository');
   const runtimeSourceParent = join(root, 'runtime-source');
