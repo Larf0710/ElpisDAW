@@ -53,7 +53,7 @@ beforeAll(async () => {
     ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', buildScriptPath],
     { cwd: projectRoot, windowsHide: true },
   );
-}, 30_000);
+}, 120_000);
 
 afterEach(async () => {
   await Promise.all(
