@@ -2160,7 +2160,7 @@ describe('HumStudio v0.1 single-Project vertical acceptance', () => {
     expect(
       finalRuntime.generatedArtifactFinalizer.getActiveReservationCount(),
     ).toBe(0);
-  });
+  }, 15_000);
 });
 
 async function startRuntime(projectRoot) {

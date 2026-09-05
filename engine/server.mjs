@@ -149,6 +149,7 @@ import {
   SoundFontPresetCatalogError,
   SoundFontPresetCatalogService,
 } from './soundFontPresetCatalogService.mjs';
+import { ProductionUiFileServer } from './productionUiFileServer.mjs';
 import { selectWindowsProjectRoot } from './windowsDirectoryPicker.mjs';
 
 const MINIMUM_TOKEN_LENGTH = 32;
@@ -181,6 +182,7 @@ export async function startLocalEngineServer({
   printMixService,
   projectMixdownService,
   projectMixdownWorkerClient,
+  uiRootPath,
   recordingArtifactWriter,
   selectProjectRoot = selectWindowsProjectRoot,
   soundFontAuditionService,
@@ -311,6 +313,10 @@ export async function startLocalEngineServer({
     },
     service: resolvedPrintMixService,
   });
+  const productionUiFileServer =
+    uiRootPath === undefined
+      ? undefined
+      : await ProductionUiFileServer.create({ rootPath: uiRootPath });
 
   await projectRootAuthority.restore();
 
@@ -324,6 +330,7 @@ export async function startLocalEngineServer({
     instanceId,
     projectFileStore: resolvedProjectFileStore,
     printMixOperations,
+    productionUiFileServer,
     projectMixdownOperations,
     generatedArtifactFinalizer: resolvedGeneratedArtifactFinalizer,
     gpuJobQueue: resolvedGpuJobQueue,
@@ -500,6 +507,14 @@ async function handleRequest(request, response, context) {
     requestUrl.pathname === LOCAL_ENGINE_SOURCE_RESTORE_PATH;
 
   if (!isSupportedPath) {
+    if (
+      context.productionUiFileServer &&
+      !requestUrl.pathname.startsWith('/api/')
+    ) {
+      await context.productionUiFileServer.serve(request, response, requestUrl);
+      return;
+    }
+
     sendJson(response, 404, { code: 'NOT_FOUND', message: 'Local Engine endpoint not found.' });
     return;
   }
@@ -2271,7 +2286,10 @@ function isDirectExecution() {
 if (isDirectExecution()) {
   const token = process.env.HUMSTUDIO_ENGINE_TOKEN?.trim() || randomBytes(32).toString('hex');
   const port = process.env.HUMSTUDIO_ENGINE_PORT || LOCAL_ENGINE_DEFAULT_PORT;
-  const allowedOrigin = process.env.HUMSTUDIO_UI_ORIGIN || LOCAL_ENGINE_DEFAULT_UI_ORIGIN;
+  const uiRootPath = process.env.HUMSTUDIO_UI_ROOT?.trim() || undefined;
+  const allowedOrigin =
+    process.env.HUMSTUDIO_UI_ORIGIN ||
+    (uiRootPath ? `http://${LOCAL_ENGINE_HOST}:${port}` : LOCAL_ENGINE_DEFAULT_UI_ORIGIN);
 
   try {
     const builtinSoundFont = await createDefaultSoundFontBuiltinDefinition();
@@ -2280,6 +2298,7 @@ if (isDirectExecution()) {
       builtinSoundFonts: [builtinSoundFont],
       port,
       token,
+      uiRootPath,
     });
     const projectRoot = engine.getProjectRootSnapshot();
 
@@ -2291,6 +2310,7 @@ if (isDirectExecution()) {
         `Log Level: ${localEngineLogger.getLevel().toUpperCase()} (HUMSTUDIO_LOG_LEVEL)`,
         'Work Log: QUEUED -> MODEL LOAD -> GENERATION -> OUTPUT SAVE -> COMPLETE',
         `UI Origin: ${allowedOrigin}`,
+        `Production UI: ${uiRootPath ? engine.baseUrl : 'disabled'}`,
         projectRoot.status === 'READY'
           ? `Project Root: ${projectRoot.rootPath}`
           : `Project Root: not selected${projectRoot.recoveryIssue ? ` (${projectRoot.recoveryIssue})` : ''}`,

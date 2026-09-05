@@ -13,6 +13,13 @@ is not yet connected to the application and a visible `SA3 T2A` PatchTab does
 not exist. Exact model weights and the isolated Python environment remain
 outside the repository.
 
+The 2026-09-05 V0.1 redistribution review accepts only a `USER_SUPPLIED`
+boundary. The configured local virtual-environment launcher currently cannot
+start because its retained CPython 3.10 base interpreter is unavailable. The
+accepted 2026-08-05 compatibility evidence remains historical evidence for the
+exact profile; it does not establish current Runtime liveness. The environment
+must be rebuilt or repaired before another live generation run.
+
 This is intentional. A bounded real Audio-to-Audio generation and independent
 file verification passed on the target Windows GPU. The evidence is
 `ACCEPTED_FOR_REVIEW` and `FILES_VERIFIED`; those statuses did not automatically
@@ -82,13 +89,36 @@ The components remain separate:
    accepted the gated access terms for this probe.
 3. The model card identifies T5Gemma under separate Gemma Terms of Use; Master
    accepted those terms for this probe.
-4. Transitive dependency licenses have not been audited.
+4. The retained environment contains `54` installed distributions and `68`
+   license or notice evidence files. This snapshot is not a reproducible
+   release lock, and one installed tokenizers distribution contains no license
+   file beside its Apache license metadata.
 
 Stability AI's current license page describes commercial registration and a
 USD 1,000,000 annual-revenue threshold for the Community License. HumStudio
 does not treat this technical review as legal or redistribution approval. Model
-weights must not be bundled until Master accepts the applicable terms and the
-distribution review is complete.
+weights must not be bundled until all applicable model, product-use,
+attribution, registration, and distribution requirements are complete.
+
+## V0.1 Redistribution Result
+
+The path-free 2026-09-05 review evidence has SHA-256
+`f197aa8baa1b36351c437837f35cb2927a3d9b7f2cdfcf8bfbcc59682c86e2e2`.
+It verifies the clean pinned Provider checkout, `54` installed package
+identities, `68` installed license or notice files, and the exact `17`-file
+model snapshot totaling `10,445,316,196` bytes. The main Stable Audio 3 and
+T5Gemma model hashes still match the retained generation evidence.
+
+ElpisDAW V0.1 distributes only its Provider adapter, protocols, and runtime
+profile. The Python/CUDA environment is `USER_SUPPLIED`; Stable Audio 3 Medium
+and T5Gemma remain `EXCLUDED`. ElpisDAW does not download these artifacts or
+accept their terms for the user. This closes the external-byte boundary only.
+The model terms also address distribution of a product that uses the model, so
+the required agreement copy, NOTICE attribution, prominent `Powered by
+Stability AI` display, commercial registration state, and incorporated-policy
+review remain release gates. Future bundling or an optional downloader also
+remains blocked pending an exact reproducible artifact, complete notices and
+SBOM, and clean-machine acceptance.
 
 ## Execution policy
 

@@ -4,15 +4,36 @@
 
 Public code contribution intake is not open yet.
 
-ElpisDAW has selected MPL-2.0 for the Core, but the project has not selected a
-DCO, CLA, copyright assignment, or other contributor-rights process. Do not
-submit code on the assumption that one of those policies applies. This document
-must be updated when project governance approves contribution intake and the
-applicable rights process.
+ElpisDAW has selected MPL-2.0 for the Core and Developer Certificate of Origin
+1.1 sign-off for future contributions. This selection does not open public
+contribution intake. Do not submit code until project governance explicitly
+opens intake and publishes the supported submission process.
 
 Documentation review, architecture discussion, and reproducible defect reports
 may be prepared for the future public repository, but no external contribution
 is accepted until the public repository and rights process are opened.
+
+## Developer Certificate of Origin
+
+When contribution intake opens, every commit in a proposed change must include
+a `Signed-off-by` trailer certifying the
+[Developer Certificate of Origin 1.1](https://developercertificate.org/).
+
+Create the trailer with Git's sign-off option:
+
+```powershell
+git commit --signoff
+```
+
+The trailer must use the contributor's real name and an email address they are
+authorized to use for the contribution. Signing off certifies that the
+contributor has the right to submit the work under the applicable open-source
+license and understands that the contribution and sign-off become part of a
+public record. A sign-off is a rights certification; it is separate from GPG or
+SSH commit-signature verification.
+
+Commits without a valid sign-off must be corrected before they can be accepted.
+Maintainers must not add a contributor's sign-off on that contributor's behalf.
 
 ## Contribution Principles
 
@@ -70,4 +91,4 @@ When public contribution intake is explicitly opened:
 
 Submitting code does not grant permission to use the ElpisDAW name, logo,
 Official Provider label, or Verified Extension label for an independent fork or
-product.
+product. See [TRADEMARKS.md](./TRADEMARKS.md).

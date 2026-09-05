@@ -35,7 +35,13 @@ Run:
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Install-FluidSynthRuntime.ps1
 ```
 
-The installer downloads the official release archive, verifies this pinned SHA-256, validates every ZIP destination, copies only the required executable and DLL files, retains the LGPL-2.1 license text, and verifies the installed runtime version.
+The installer downloads the official release archive, verifies this pinned
+SHA-256, validates every ZIP destination, and copies only `fluidsynth.exe`,
+`libfluidsynth-3.dll`, and `sndfile.dll`. It verifies every copied binary,
+retains separately verified FluidSynth and libsndfile LGPL license texts, and
+verifies the installed FluidSynth version. The upstream archive's unused
+`SDL3.dll` is excluded because its MSVC build disables SDL3 and the installed
+FluidSynth binaries do not import it.
 
 ```text
 fd40c259c56afd6c9ed02ca6c543f896524ade2e3eada28894df7839794f24c9
@@ -46,6 +52,12 @@ Official references:
 - Release: https://github.com/FluidSynth/fluidsynth/releases/tag/v2.5.7
 - Project: https://www.fluidsynth.org/
 - License FAQ: https://www.fluidsynth.org/wiki/LicensingFAQ/
+
+This installer is for a local Git-ignored runtime. It is not an approved
+redistribution manifest. The official archives omit complete license and notice
+sets for static codec components inside `sndfile.dll`; do not copy this runtime
+into an ElpisDAW package or managed download until the full notice, source,
+replacement, and final-artifact review passes.
 
 ## Live Note Preview lifecycle
 

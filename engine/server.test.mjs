@@ -1769,6 +1769,46 @@ describe('Local Engine Audio Artifact file deletion', () => {
   });
 });
 
+describe('Production UI integration', () => {
+  it('serves a built UI without a token while keeping API routes authenticated', async () => {
+    const uiRootPath = await createTemporaryDirectory();
+    await mkdir(join(uiRootPath, 'assets'), { recursive: true });
+    await writeFile(
+      join(uiRootPath, 'index.html'),
+      '<!doctype html><html><head><title>ElpisDAW</title></head></html>\n',
+      'utf8',
+    );
+    await writeFile(join(uiRootPath, 'assets', 'app.js'), 'export {};\n', 'utf8');
+    const engine = await startTestEngine({ uiRootPath });
+    const documentResponse = await fetch(`${engine.baseUrl}/`);
+    const assetResponse = await fetch(`${engine.baseUrl}/assets/app.js`);
+    const unauthenticatedApiResponse = await fetch(
+      `${engine.baseUrl}${LOCAL_ENGINE_HEALTH_PATH}`,
+      { headers: { Origin: allowedOrigin } },
+    );
+    const unknownApiResponse = await fetch(`${engine.baseUrl}/api/v1/not-real`);
+
+    expect(documentResponse.status).toBe(200);
+    await expect(documentResponse.text()).resolves.toContain('<title>ElpisDAW</title>');
+    expect(assetResponse.status).toBe(200);
+    await expect(assetResponse.text()).resolves.toBe('export {};\n');
+    expect(unauthenticatedApiResponse.status).toBe(401);
+    await expect(unauthenticatedApiResponse.json()).resolves.toMatchObject({
+      code: 'UNAUTHORIZED',
+    });
+    expect(unknownApiResponse.status).toBe(404);
+    await expect(unknownApiResponse.json()).resolves.toMatchObject({ code: 'NOT_FOUND' });
+  });
+
+  it('keeps development mode API-only when no production UI root is configured', async () => {
+    const engine = await startTestEngine();
+    const response = await fetch(`${engine.baseUrl}/`);
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toMatchObject({ code: 'NOT_FOUND' });
+  });
+});
+
 async function startTestEngine(overrides = {}) {
   const engine = await startLocalEngineServer({
     allowedOrigin,

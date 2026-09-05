@@ -5,6 +5,17 @@ import { describe, expect, it } from 'vitest';
 const appSource = readFileSync(new URL('./App.tsx', import.meta.url), 'utf8');
 
 describe('standalone ACE SA3 Guide and saved Project restoration wiring', () => {
+  it('keeps the Stability AI attribution and product-use links visible on SA3 PatchTabs', () => {
+    expect(appSource).toContain('Powered by Stability AI');
+    expect(appSource).toContain('aria-label="Stable Audio 3 licensing"');
+    expect(appSource).toContain('https://stability.ai/license');
+    expect(appSource).toContain('https://stability.ai/community-license');
+    expect(appSource).toContain('https://stability.ai/use-policy');
+    expect(appSource).toContain(
+      'canGenerateStableAudio3AudioToAudio ||\n        canGenerateStableAudio3TextToAudio',
+    );
+  });
+
   it('runs the strict T2A Guide mode and commits only the verified result Project', () => {
     expect(appSource).toContain('runAceStepTextToAudioVocalStage');
     expect(appSource).toContain('createAceStepTextToAudioVocalTarget');
