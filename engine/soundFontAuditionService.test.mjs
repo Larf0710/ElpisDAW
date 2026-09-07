@@ -1,4 +1,12 @@
-import { access, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import {
+  access,
+  mkdtemp,
+  readFile,
+  readdir,
+  realpath,
+  rm,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -28,8 +36,8 @@ describe('SoundFontAuditionService', () => {
       renderMidiToWav: vi.fn(async ({ midiPath, outputPath, soundFontPath }) => {
         const midi = await readFile(midiPath);
         expect(midi.subarray(0, 4).toString('ascii')).toBe('MThd');
-        expect(soundFontPath.toLowerCase()).toBe(
-          join(rootPath, 'soundfonts', 'Keys.sf2').toLowerCase(),
+        expect((await realpath(soundFontPath)).toLowerCase()).toBe(
+          (await realpath(join(rootPath, 'soundfonts', 'Keys.sf2'))).toLowerCase(),
         );
         await writeFile(outputPath, createPcmWav());
       }),

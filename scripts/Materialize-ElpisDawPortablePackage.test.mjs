@@ -8,6 +8,7 @@ import {
   mkdtemp,
   readFile,
   readdir,
+  realpath,
   rm,
   writeFile,
 } from 'node:fs/promises';
@@ -65,11 +66,12 @@ describe.runIf(process.platform === 'win32')('ElpisDAW portable package material
       await snapshotTree(second.outputRoot),
     );
     expect(fixture.buildCalls).toHaveLength(2);
+    const canonicalRepositoryPath = (await realpath(fixture.repositoryPath)).toLowerCase();
     expect(
-      fixture.buildCalls.every(
-        (path) => path.toLowerCase() === fixture.repositoryPath.toLowerCase(),
+      await Promise.all(
+        fixture.buildCalls.map(async (path) => (await realpath(path)).toLowerCase()),
       ),
-    ).toBe(true);
+    ).toEqual([canonicalRepositoryPath, canonicalRepositoryPath]);
     expect(fixture.validationCalls).toHaveLength(2);
 
     const packageFiles = (await listFiles(first.packageRoot)).sort();

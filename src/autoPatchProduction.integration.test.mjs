@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { access, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { access, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -200,10 +200,11 @@ describe('Auto Patch production Local Engine integration', () => {
       artifactId: instrumentArtifactId,
       kind: 'audio',
     });
-    expect(stableAudio3Input.path.toLowerCase()).toBe(
-      join(
-        projectRoot,
-        ...instrumentArtifact.file.relativePath.split('/'),
+    expect((await realpath(stableAudio3Input.path)).toLowerCase()).toBe(
+      (
+        await realpath(
+          join(projectRoot, ...instrumentArtifact.file.relativePath.split('/')),
+        )
       ).toLowerCase(),
     );
     expect(stableAudio3Artifact.lineage).toEqual({
