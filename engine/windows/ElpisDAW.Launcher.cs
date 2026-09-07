@@ -23,6 +23,8 @@ namespace ElpisDAW.Windows
         private const int DefaultEnginePort = 43120;
         private const int EnginePortAttempts = 32;
         private const int ReadinessTimeoutSeconds = 25;
+        private const int ShowWindowMaximized = 3;
+        private const int ShowWindowRestore = 9;
         private const string HealthPath = "/api/v1/health";
         private const string TokenHeader = "x-humstudio-engine-token";
 
@@ -102,18 +104,62 @@ namespace ElpisDAW.Windows
                         string launchUrl = engineOrigin +
                             "/#engineBaseUrl=" + Uri.EscapeDataString(engineOrigin) +
                             "&engineToken=" + Uri.EscapeDataString(token);
-                        OpenMicrosoftEdge(edgePath, launchUrl);
+                        string browserProfilePath = ResolveBrowserProfilePath();
+                        Process browserProcess = null;
+
+                        try
+                        {
+                            browserProcess = OpenMicrosoftEdge(
+                                edgePath,
+                                launchUrl,
+                                browserProfilePath,
+                                processJob
+                            );
+                        }
+                        catch
+                        {
+                            StopMicrosoftEdge(browserProcess);
+
+                            if (browserProcess != null)
+                            {
+                                browserProcess.Dispose();
+                            }
+
+                            throw;
+                        }
 
                         Application.EnableVisualStyles();
                         Application.SetCompatibleTextRenderingDefault(false);
 
-                        using (LauncherApplicationContext context = new LauncherApplicationContext(
-                            engineProcess,
-                            processJob,
-                            edgePath,
-                            launchUrl,
-                            package.Version
-                        ))
+                        LauncherApplicationContext context = null;
+
+                        try
+                        {
+                            context = new LauncherApplicationContext(
+                                engineProcess,
+                                browserProcess,
+                                processJob,
+                                edgePath,
+                                launchUrl,
+                                browserProfilePath,
+                                package.Version
+                            );
+                            browserProcess = null;
+                            browserProfilePath = null;
+                        }
+                        catch
+                        {
+                            StopMicrosoftEdge(browserProcess);
+
+                            if (browserProcess != null)
+                            {
+                                browserProcess.Dispose();
+                            }
+
+                            throw;
+                        }
+
+                        using (context)
                         {
                             Application.Run(context);
                         }
@@ -451,21 +497,137 @@ namespace ElpisDAW.Windows
             );
         }
 
-        internal static void OpenMicrosoftEdge(string edgePath, string launchUrl)
+        internal static string ResolveBrowserProfilePath()
+        {
+            string browserProfilePath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "ElpisDAW",
+                "BrowserProfile"
+            );
+            Directory.CreateDirectory(browserProfilePath);
+            return browserProfilePath;
+        }
+
+        internal static Process OpenMicrosoftEdge(
+            string edgePath,
+            string launchUrl,
+            string browserProfilePath,
+            ChildProcessJob processJob
+        )
         {
             ProcessStartInfo startInfo = new ProcessStartInfo
             {
-                Arguments = "--app=" + QuoteArgument(launchUrl),
+                Arguments =
+                    "--user-data-dir=" + QuoteArgument(browserProfilePath) +
+                    " --app=" + QuoteArgument(launchUrl) +
+                    " --no-first-run" +
+                    " --no-default-browser-check" +
+                    " --disable-background-mode",
                 FileName = edgePath,
                 UseShellExecute = false
             };
 
-            using (Process browserProcess = Process.Start(startInfo))
+            Process startedProcess = Process.Start(startInfo);
+
+            if (startedProcess == null)
             {
-                if (browserProcess == null)
+                throw new InvalidOperationException("Microsoft Edge did not start.");
+            }
+
+            try
+            {
+                processJob.Add(startedProcess);
+                Process browserProcess = processJob.WaitForMainWindowProcess("msedge", 15000);
+                NativeMethods.ShowWindowAsync(
+                    browserProcess.MainWindowHandle,
+                    ShowWindowMaximized
+                );
+                NativeMethods.SetForegroundWindow(browserProcess.MainWindowHandle);
+
+                if (browserProcess.Id != startedProcess.Id)
                 {
-                    throw new InvalidOperationException("Microsoft Edge did not start.");
+                    startedProcess.Dispose();
                 }
+
+                return browserProcess;
+            }
+            catch
+            {
+                StopMicrosoftEdge(startedProcess);
+                startedProcess.Dispose();
+                processJob.StopProcessesByName("msedge");
+                throw;
+            }
+        }
+
+        internal static bool ActivateMicrosoftEdge(Process browserProcess)
+        {
+            if (browserProcess == null)
+            {
+                return false;
+            }
+
+            DateTime deadline = DateTime.UtcNow.AddSeconds(2);
+
+            while (DateTime.UtcNow < deadline)
+            {
+                try
+                {
+                    if (browserProcess.HasExited)
+                    {
+                        return false;
+                    }
+
+                    browserProcess.Refresh();
+                    IntPtr windowHandle = browserProcess.MainWindowHandle;
+
+                    if (windowHandle != IntPtr.Zero)
+                    {
+                        if (NativeMethods.IsIconic(windowHandle))
+                        {
+                            NativeMethods.ShowWindowAsync(windowHandle, ShowWindowRestore);
+                        }
+
+                        NativeMethods.SetForegroundWindow(windowHandle);
+                        return true;
+                    }
+                }
+                catch (InvalidOperationException)
+                {
+                    return false;
+                }
+
+                Thread.Sleep(50);
+            }
+
+            return false;
+        }
+
+        internal static void StopMicrosoftEdge(Process browserProcess)
+        {
+            if (browserProcess == null)
+            {
+                return;
+            }
+
+            try
+            {
+                if (browserProcess.HasExited)
+                {
+                    return;
+                }
+
+                browserProcess.CloseMainWindow();
+
+                if (!browserProcess.WaitForExit(1500))
+                {
+                    browserProcess.Kill();
+                    browserProcess.WaitForExit(3000);
+                }
+            }
+            catch
+            {
+                // The Job Object close remains the final browser termination path.
             }
         }
 
@@ -602,24 +764,31 @@ namespace ElpisDAW.Windows
         private readonly ChildProcessJob processJob;
         private readonly string edgePath;
         private readonly string launchUrl;
+        private readonly string browserProfilePath;
         private readonly NotifyIcon notifyIcon;
+        private readonly Icon notifyIconImage;
         private readonly ContextMenuStrip menu;
         private readonly System.Windows.Forms.Timer processTimer;
+        private Process browserProcess;
         private bool isClosing;
         private bool isDisposed;
 
         internal LauncherApplicationContext(
             Process engineProcess,
+            Process browserProcess,
             ChildProcessJob processJob,
             string edgePath,
             string launchUrl,
+            string browserProfilePath,
             string version
         )
         {
             this.engineProcess = engineProcess;
+            this.browserProcess = browserProcess;
             this.processJob = processJob;
             this.edgePath = edgePath;
             this.launchUrl = launchUrl;
+            this.browserProfilePath = browserProfilePath;
 
             ToolStripMenuItem openItem = new ToolStripMenuItem("Open ElpisDAW");
             openItem.Click += OpenItemClicked;
@@ -630,10 +799,11 @@ namespace ElpisDAW.Windows
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(exitItem);
             string iconText = "ElpisDAW " + version;
+            notifyIconImage = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
             notifyIcon = new NotifyIcon
             {
                 ContextMenuStrip = menu,
-                Icon = SystemIcons.Application,
+                Icon = notifyIconImage ?? SystemIcons.Application,
                 Text = iconText.Length <= 63 ? iconText : iconText.Substring(0, 63),
                 Visible = true
             };
@@ -648,7 +818,30 @@ namespace ElpisDAW.Windows
         {
             try
             {
-                LauncherProgram.OpenMicrosoftEdge(edgePath, launchUrl);
+                if (
+                    browserProcess != null &&
+                    !browserProcess.HasExited &&
+                    LauncherProgram.ActivateMicrosoftEdge(browserProcess)
+                )
+                {
+                    return;
+                }
+
+                Process previousBrowserProcess = browserProcess;
+                browserProcess = null;
+                LauncherProgram.StopMicrosoftEdge(previousBrowserProcess);
+
+                if (previousBrowserProcess != null)
+                {
+                    previousBrowserProcess.Dispose();
+                }
+
+                browserProcess = LauncherProgram.OpenMicrosoftEdge(
+                    edgePath,
+                    launchUrl,
+                    browserProfilePath,
+                    processJob
+                );
             }
             catch (Exception error)
             {
@@ -701,8 +894,31 @@ namespace ElpisDAW.Windows
             processTimer.Dispose();
             notifyIcon.Visible = false;
             notifyIcon.Dispose();
+
+            if (notifyIconImage != null)
+            {
+                notifyIconImage.Dispose();
+            }
+
             menu.Dispose();
+            LauncherProgram.StopMicrosoftEdge(browserProcess);
             processJob.Dispose();
+
+            if (browserProcess != null)
+            {
+                try
+                {
+                    browserProcess.WaitForExit(3000);
+                }
+                catch
+                {
+                    // Closing the Job Object is the authoritative shutdown action.
+                }
+
+                browserProcess.Dispose();
+                browserProcess = null;
+            }
+
             engineProcess.Dispose();
         }
     }
@@ -757,13 +973,152 @@ namespace ElpisDAW.Windows
             if (jobHandle == IntPtr.Zero || process == null || process.HasExited)
             {
                 throw new InvalidOperationException(
-                    "ElpisDAW Local Engine could not enter launcher supervision."
+                    "A required ElpisDAW process could not enter launcher supervision."
                 );
             }
 
             if (!NativeMethods.AssignProcessToJobObject(jobHandle, process.Handle))
             {
                 throw new Win32Exception(Marshal.GetLastWin32Error());
+            }
+        }
+
+        internal Process WaitForMainWindowProcess(string processName, int timeoutMilliseconds)
+        {
+            DateTime deadline = DateTime.UtcNow.AddMilliseconds(timeoutMilliseconds);
+
+            while (DateTime.UtcNow < deadline)
+            {
+                int[] processIds = GetProcessIds();
+
+                for (int index = 0; index < processIds.Length; index += 1)
+                {
+                    Process process = null;
+
+                    try
+                    {
+                        process = Process.GetProcessById(processIds[index]);
+
+                        if (!String.Equals(
+                            process.ProcessName,
+                            processName,
+                            StringComparison.OrdinalIgnoreCase
+                        ))
+                        {
+                            process.Dispose();
+                            continue;
+                        }
+
+                        process.Refresh();
+
+                        if (!process.HasExited && process.MainWindowHandle != IntPtr.Zero)
+                        {
+                            return process;
+                        }
+
+                        process.Dispose();
+                    }
+                    catch
+                    {
+                        if (process != null)
+                        {
+                            process.Dispose();
+                        }
+                    }
+                }
+
+                Thread.Sleep(50);
+            }
+
+            throw new InvalidOperationException("Microsoft Edge app window did not start.");
+        }
+
+        internal void StopProcessesByName(string processName)
+        {
+            int[] processIds;
+
+            try
+            {
+                processIds = GetProcessIds();
+            }
+            catch
+            {
+                return;
+            }
+
+            for (int index = 0; index < processIds.Length; index += 1)
+            {
+                try
+                {
+                    using (Process process = Process.GetProcessById(processIds[index]))
+                    {
+                        if (
+                            String.Equals(
+                                process.ProcessName,
+                                processName,
+                                StringComparison.OrdinalIgnoreCase
+                            ) &&
+                            !process.HasExited
+                        )
+                        {
+                            process.Kill();
+                        }
+                    }
+                }
+                catch
+                {
+                    // A child process may exit while the Job Object is enumerated.
+                }
+            }
+        }
+
+        private int[] GetProcessIds()
+        {
+            const int maximumProcessCount = 1024;
+            int processListOffset = sizeof(uint) * 2;
+            int bufferLength = processListOffset + (IntPtr.Size * maximumProcessCount);
+            IntPtr buffer = Marshal.AllocHGlobal(bufferLength);
+
+            try
+            {
+                uint returnedLength;
+
+                if (!NativeMethods.QueryInformationJobObject(
+                    jobHandle,
+                    3,
+                    buffer,
+                    (uint)bufferLength,
+                    out returnedLength
+                ))
+                {
+                    throw new Win32Exception(Marshal.GetLastWin32Error());
+                }
+
+                int processCount = Marshal.ReadInt32(buffer, sizeof(uint));
+
+                if (processCount < 0 || processCount > maximumProcessCount)
+                {
+                    throw new InvalidOperationException(
+                        "ElpisDAW launcher supervision returned an invalid process list."
+                    );
+                }
+
+                int[] processIds = new int[processCount];
+
+                for (int index = 0; index < processCount; index += 1)
+                {
+                    IntPtr processIdPointer = Marshal.ReadIntPtr(
+                        buffer,
+                        processListOffset + (index * IntPtr.Size)
+                    );
+                    processIds[index] = checked((int)processIdPointer.ToInt64());
+                }
+
+                return processIds;
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(buffer);
             }
         }
 
@@ -815,8 +1170,30 @@ namespace ElpisDAW.Windows
 
     internal static class NativeMethods
     {
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool IsIconic(IntPtr windowHandle);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool SetForegroundWindow(IntPtr windowHandle);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool ShowWindowAsync(IntPtr windowHandle, int command);
+
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         internal static extern IntPtr CreateJobObject(IntPtr securityAttributes, string name);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool QueryInformationJobObject(
+            IntPtr job,
+            int informationClass,
+            IntPtr information,
+            uint informationLength,
+            out uint returnLength
+        );
 
         [DllImport("kernel32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]

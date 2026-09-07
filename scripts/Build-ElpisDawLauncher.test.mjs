@@ -33,27 +33,36 @@ const directoryPickerPath = join(
   'HumStudio.DirectoryPicker.exe',
 );
 const temporaryDirectories = new Set();
+const windowsPowerShellPath = process.env.SystemRoot
+  ? join(
+      process.env.SystemRoot,
+      'System32',
+      'WindowsPowerShell',
+      'v1.0',
+      'powershell.exe',
+    )
+  : 'powershell.exe';
+
+async function buildNativeBinaries() {
+  await execFileAsync(
+    windowsPowerShellPath,
+    ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', directoryPickerBuildScriptPath],
+    { cwd: projectRoot, windowsHide: true },
+  );
+  await execFileAsync(
+    windowsPowerShellPath,
+    ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', buildScriptPath],
+    { cwd: projectRoot, windowsHide: true },
+  );
+}
 
 beforeAll(async () => {
   if (process.platform !== 'win32') {
     return;
   }
 
-  const windowsRoot = process.env.SystemRoot;
-  const powershellPath = windowsRoot
-    ? join(windowsRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
-    : 'powershell.exe';
-  await execFileAsync(
-    powershellPath,
-    ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', directoryPickerBuildScriptPath],
-    { cwd: projectRoot, windowsHide: true },
-  );
-  await execFileAsync(
-    powershellPath,
-    ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', buildScriptPath],
-    { cwd: projectRoot, windowsHide: true },
-  );
-}, 120_000);
+  await buildNativeBinaries();
+}, 30_000);
 
 afterEach(async () => {
   await Promise.all(
@@ -63,6 +72,16 @@ afterEach(async () => {
 });
 
 describe.runIf(process.platform === 'win32')('ElpisDAW native launcher manifest validation', () => {
+  it('rebuilds both native executables byte-for-byte deterministically', async () => {
+    const firstLauncher = await readFile(launcherPath);
+    const firstDirectoryPicker = await readFile(directoryPickerPath);
+
+    await buildNativeBinaries();
+
+    await expect(readFile(launcherPath)).resolves.toEqual(firstLauncher);
+    await expect(readFile(directoryPickerPath)).resolves.toEqual(firstDirectoryPicker);
+  }, 30_000);
+
   it('accepts an exact package with every required file and hash', async () => {
     const fixture = await createPackageFixture();
     const result = await validatePackage(fixture.packageRoot, fixture.resultFilePath);
@@ -164,8 +183,10 @@ async function createPackageFixture() {
   const resultRoot = await createTemporaryDirectory('elpisdaw-launcher-result-');
   const files = new Map([
     ['app/engine/server.mjs', Buffer.from('export {};\n')],
+    ['app/ui/elpisdaw-icon.png', Buffer.from('web-icon-fixture\n')],
     ['app/ui/index.html', Buffer.from('<title>ElpisDAW</title>\n')],
     ['licenses/ElpisDAW-LICENSE.txt', Buffer.from('MPL-2.0 fixture\n')],
+    ['licenses/ElpisDAW-TRADEMARKS.md', Buffer.from('Trademark policy fixture\n')],
     ['licenses/THIRD_PARTY_NOTICES.md', Buffer.from('# Notices\n')],
     ['native/HumStudio.DirectoryPicker.exe', Buffer.from('directory-picker-fixture\n')],
     ['runtime/LICENSE', Buffer.from('Node.js license fixture\n')],
@@ -254,15 +275,24 @@ async function createRunnablePackageFixture() {
       isDirectory ||
       (!relativePath.includes('.test.') && /\.(js|json)$/.test(relativePath)),
   );
-  await copySelectedTree(
-    join(projectRoot, 'dist'),
-    join(packageRoot, 'app', 'ui'),
-    () => true,
+  await writePackageFile(
+    packageRoot,
+    'app/ui/index.html',
+    '<!doctype html><title>ElpisDAW launcher smoke fixture</title>\n',
+  );
+  await writePackageFile(
+    packageRoot,
+    'app/ui/elpisdaw-icon.png',
+    'web icon fixture\n',
   );
   await mkdir(join(packageRoot, 'licenses'), { recursive: true });
   await copyFile(
     join(projectRoot, 'LICENSE'),
     join(packageRoot, 'licenses', 'ElpisDAW-LICENSE.txt'),
+  );
+  await copyFile(
+    join(projectRoot, 'TRADEMARKS.md'),
+    join(packageRoot, 'licenses', 'ElpisDAW-TRADEMARKS.md'),
   );
   await writePackageFile(
     packageRoot,

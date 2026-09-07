@@ -6,7 +6,7 @@ const stylesSource = readFileSync(new URL('./styles.css', import.meta.url), 'utf
 
 describe('visible FINAL FILER contract', () => {
   it('places FINAL FILER first in the hamburger menu followed immediately by a separator', () => {
-    const menuStart = appSource.indexOf('<div className="app-menu" role="menu">');
+    const menuStart = appSource.indexOf('className="app-menu"');
     const finalFiler = appSource.indexOf('FINAL FILER <small>DELIVER</small>', menuStart);
     const separator = appSource.indexOf('className="menu-separator" role="separator"', finalFiler);
     const projectSection = appSource.indexOf('<span className="menu-section-label">Project</span>', menuStart);

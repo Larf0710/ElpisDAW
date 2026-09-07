@@ -25,6 +25,7 @@ namespace HumStudio.Windows
 
                 if (Array.IndexOf(args, "--smoke-test") >= 0)
                 {
+                    VerifyOwnerWindowIcon();
                     VerifyCommonItemDialogAvailability();
                     WriteResult(resultFilePath, "READY");
                     return 0;
@@ -112,34 +113,54 @@ namespace HumStudio.Windows
 
         private static Form CreateOwnerWindow()
         {
-            var owner = new Form
-            {
-                AutoScaleMode = AutoScaleMode.Dpi,
-                BackColor = Color.FromArgb(25, 28, 33),
-                ClientSize = new Size(420, 112),
-                FormBorderStyle = FormBorderStyle.FixedDialog,
-                MaximizeBox = false,
-                MinimizeBox = true,
-                ShowIcon = true,
-                ShowInTaskbar = true,
-                StartPosition = FormStartPosition.CenterScreen,
-                Text = "ElpisDAW Project Root",
-                TopMost = true
-            };
+            Icon ownerIcon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
 
-            owner.Controls.Add(new Label
+            if (ownerIcon == null)
             {
-                AutoSize = false,
-                Dock = DockStyle.Fill,
-                Font = new Font("Segoe UI", 10F, FontStyle.Regular),
-                ForeColor = Color.White,
-                Padding = new Padding(24),
-                Text = "Opening the Windows folder picker...\r\n" +
-                       "If another app is in front, select ElpisDAW Project Root on the taskbar.",
-                TextAlign = ContentAlignment.MiddleLeft
-            });
+                throw new InvalidOperationException(
+                    "The ElpisDAW Project Root window icon could not be loaded."
+                );
+            }
 
-            return owner;
+            try
+            {
+                var owner = new Form
+                {
+                    AutoScaleMode = AutoScaleMode.Dpi,
+                    BackColor = Color.FromArgb(25, 28, 33),
+                    ClientSize = new Size(420, 112),
+                    FormBorderStyle = FormBorderStyle.FixedDialog,
+                    Icon = ownerIcon,
+                    MaximizeBox = false,
+                    MinimizeBox = true,
+                    ShowIcon = true,
+                    ShowInTaskbar = true,
+                    StartPosition = FormStartPosition.CenterScreen,
+                    Text = "ElpisDAW Project Root",
+                    TopMost = true
+                };
+
+                owner.Disposed += delegate { ownerIcon.Dispose(); };
+
+                owner.Controls.Add(new Label
+                {
+                    AutoSize = false,
+                    Dock = DockStyle.Fill,
+                    Font = new Font("Segoe UI", 10F, FontStyle.Regular),
+                    ForeColor = Color.White,
+                    Padding = new Padding(24),
+                    Text = "Opening the Windows folder picker...\r\n" +
+                           "If another app is in front, select ElpisDAW Project Root on the taskbar.",
+                    TextAlign = ContentAlignment.MiddleLeft
+                });
+
+                return owner;
+            }
+            catch
+            {
+                ownerIcon.Dispose();
+                throw;
+            }
         }
 
         private static int ShowDirectoryPicker(IntPtr ownerHandle, out string selectedPath)
@@ -212,6 +233,19 @@ namespace HumStudio.Windows
                 if (dialog != null)
                 {
                     Marshal.FinalReleaseComObject(dialog);
+                }
+            }
+        }
+
+        private static void VerifyOwnerWindowIcon()
+        {
+            using (var owner = CreateOwnerWindow())
+            {
+                if (owner.Icon == null || owner.Icon.Handle == IntPtr.Zero)
+                {
+                    throw new InvalidOperationException(
+                        "The ElpisDAW Project Root window icon is unavailable."
+                    );
                 }
             }
         }

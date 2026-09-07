@@ -1188,6 +1188,11 @@ export async function materializeElpisDawPortablePackage({
       'ElpisDAW license',
     );
     await copyRegularFile(
+      join(canonicalRepositoryPath, 'TRADEMARKS.md'),
+      join(packageRoot, 'licenses', 'ElpisDAW-TRADEMARKS.md'),
+      'ElpisDAW trademark policy',
+    );
+    await copyRegularFile(
       join(canonicalRepositoryPath, 'docs', 'AI_Generated_Output_Notice.md'),
       join(packageRoot, 'licenses', 'AI_GENERATED_OUTPUT_NOTICE.md'),
       'AI-generated output notice',
@@ -1247,6 +1252,10 @@ export async function materializeElpisDawPortablePackage({
     await assertRegularFile(
       join(packageRoot, 'app', 'ui', 'index.html'),
       'Packaged production UI entry point',
+    );
+    await assertRegularFile(
+      join(packageRoot, 'app', 'ui', 'elpisdaw-icon.png'),
+      'Packaged ElpisDAW web icon',
     );
 
     const copiedComponents = await copyBundledComponentLicenses(

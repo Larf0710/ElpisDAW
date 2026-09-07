@@ -25,6 +25,10 @@ Names and marks belonging to model authors, Provider projects, dependencies,
 and other third parties are controlled by their respective owners. This policy
 does not grant rights to those marks.
 
+The official image files under `assets/branding/` and
+`public/elpisdaw-icon.png` are Project Marks governed by this policy. They are
+not licensed under the repository's MPL-2.0 source-code license.
+
 ## Uses That Do Not Require Separate Permission
 
 You may use the ElpisDAW word name, without an official logo, to:

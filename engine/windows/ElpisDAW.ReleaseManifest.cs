@@ -43,8 +43,10 @@ namespace ElpisDAW.Windows
         {
             "ElpisDAW.exe",
             "app/engine/server.mjs",
+            "app/ui/elpisdaw-icon.png",
             "app/ui/index.html",
             "licenses/ElpisDAW-LICENSE.txt",
+            "licenses/ElpisDAW-TRADEMARKS.md",
             "licenses/THIRD_PARTY_NOTICES.md",
             "native/HumStudio.DirectoryPicker.exe",
             "runtime/LICENSE",
