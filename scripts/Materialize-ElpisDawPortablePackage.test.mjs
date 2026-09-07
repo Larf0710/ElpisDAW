@@ -66,11 +66,12 @@ describe.runIf(process.platform === 'win32')('ElpisDAW portable package material
       await snapshotTree(second.outputRoot),
     );
     expect(fixture.buildCalls).toHaveLength(2);
+    const canonicalRepositoryPath = (await realpath(fixture.repositoryPath)).toLowerCase();
     expect(
-      fixture.buildCalls.every(
-        (path) => path.toLowerCase() === fixture.repositoryPath.toLowerCase(),
+      await Promise.all(
+        fixture.buildCalls.map(async (path) => (await realpath(path)).toLowerCase()),
       ),
-    ).toBe(true);
+    ).toEqual([canonicalRepositoryPath, canonicalRepositoryPath]);
     expect(fixture.validationCalls).toHaveLength(2);
 
     const packageFiles = (await listFiles(first.packageRoot)).sort();
@@ -80,9 +81,11 @@ describe.runIf(process.platform === 'win32')('ElpisDAW portable package material
         'app/engine/server.mjs',
         'app/engine/providers/runtime.py',
         'app/shared/protocol.js',
+        'app/ui/elpisdaw-icon.png',
         'app/ui/index.html',
         'licenses/AI_GENERATED_OUTPUT_NOTICE.md',
         'licenses/ElpisDAW-LICENSE.txt',
+        'licenses/ElpisDAW-TRADEMARKS.md',
         'licenses/SBOM.cdx.json',
         'licenses/STABILITY_AI_NOTICE.txt',
         'licenses/Stability-AI-Community-License.md',
@@ -313,9 +316,7 @@ describe.runIf(process.platform === 'win32')('ElpisDAW portable package material
 });
 
 async function createFixture() {
-  const root = await realpath(
-    await mkdtemp(join(tmpdir(), 'elpisdaw-portable-materializer-')),
-  );
+  const root = await mkdtemp(join(tmpdir(), 'elpisdaw-portable-materializer-'));
   temporaryDirectories.add(root);
   const repositoryPath = join(root, 'repository');
   const runtimeSourceParent = join(root, 'runtime-source');
@@ -341,6 +342,11 @@ async function createFixture() {
   }));
 
   await writeFixtureFile(repositoryPath, 'LICENSE', 'Fixture MPL-2.0 license\n');
+  await writeFixtureFile(
+    repositoryPath,
+    'TRADEMARKS.md',
+    'Fixture ElpisDAW trademark policy\n',
+  );
   await writeFixtureFile(
     repositoryPath,
     'docs/AI_Generated_Output_Notice.md',
@@ -379,6 +385,11 @@ async function createFixture() {
     'export {};\n',
   );
   await writeFixtureFile(repositoryPath, 'dist/index.html', '<title>ElpisDAW</title>\n');
+  await writeFixtureFile(
+    repositoryPath,
+    'dist/elpisdaw-icon.png',
+    Buffer.from([0x89, 0x50, 0x4e, 0x47]),
+  );
   await writeFixtureFile(repositoryPath, 'dist/assets/index.js', 'console.log("ready");\n');
   await writeFixtureFile(repositoryPath, 'dist/assets/index.css', ':root {}\n');
 

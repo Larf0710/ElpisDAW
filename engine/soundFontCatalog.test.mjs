@@ -134,7 +134,7 @@ describe('SoundFontCatalog', () => {
     });
     const resolved = await catalog.resolve(snapshot.resources[0]);
     expect(resolved.library).toBe('builtin');
-    expect(resolved.absolutePath.toLowerCase()).toBe(
+    expect((await realpath(resolved.absolutePath)).toLowerCase()).toBe(
       (await realpath(absolutePath)).toLowerCase(),
     );
   });

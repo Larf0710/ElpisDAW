@@ -37,9 +37,7 @@ describe('SoundFontAuditionService', () => {
         const midi = await readFile(midiPath);
         expect(midi.subarray(0, 4).toString('ascii')).toBe('MThd');
         expect((await realpath(soundFontPath)).toLowerCase()).toBe(
-          (
-            await realpath(join(rootPath, 'soundfonts', 'Keys.sf2'))
-          ).toLowerCase(),
+          (await realpath(join(rootPath, 'soundfonts', 'Keys.sf2'))).toLowerCase(),
         );
         await writeFile(outputPath, createPcmWav());
       }),

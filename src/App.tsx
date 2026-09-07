@@ -12952,8 +12952,8 @@ function TopDock({
 
   return (
     <section className="top-dock" aria-label="TopDock">
-      <div className="top-dock-rail" aria-label="TopDock selector">
-        <div className="top-dock-buttons" role="list">
+      <div className="top-dock-rail">
+        <div className="top-dock-buttons" role="group" aria-label="TopDock selector">
           {topDockDefinitions.map((dock) => (
             <HelpHint key={dock.id} text={dock.help}>
               <button
@@ -13583,7 +13583,12 @@ function AppHeader({
             </button>
           </HelpHint>
           {isMenuOpen && (
-            <div className="app-menu" role="menu">
+            <div
+              className="app-menu"
+              role="group"
+              aria-label="App commands"
+              data-studio-page-navigation-owner
+            >
               <button
                 type="button"
                 className="menu-command final-filer-menu-command"
@@ -18946,7 +18951,7 @@ function Timeline({
                   type="button"
                   className={`timeline-icon-action copy-track ${timelineCopyAvailability.canCopy ? 'ready' : ''}`}
                   disabled={!timelineCopyAvailability.canCopy}
-                  aria-label={timelineCopyAvailability.canCopy ? timelineCopyAvailability.message : 'Copy track or clips unavailable'}
+                  aria-label={timelineCopyAvailability.message}
                   onClick={onCopyTimelineSelection}
                 >
                   <span className="copy-track-icon" aria-hidden="true" />
@@ -18963,13 +18968,23 @@ function Timeline({
                   G
                 </button>
               </HelpHint>
-              <HelpHint text="Toggle Focus mode for the selected clip lineage. Matching source and generated clips stay bright.">
+              <HelpHint
+                text={
+                  canFocusLineage
+                    ? 'Toggle Focus mode for the selected clip lineage. Matching source and generated clips stay bright.'
+                    : 'Select a Clip to enable Focus for its lineage.'
+                }
+              >
                 <button
                   type="button"
                   className={`timeline-icon-action focus ${isLineageFocusEnabled ? 'active' : ''}`}
                   disabled={!canFocusLineage}
                   aria-pressed={isLineageFocusEnabled}
-                  aria-label="Focus selected lineage"
+                  aria-label={
+                    canFocusLineage
+                      ? 'Focus selected lineage'
+                      : 'Select a Clip to enable Focus for its lineage.'
+                  }
                   onClick={() => setIsLineageFocusEnabled((isEnabled) => !isEnabled)}
                 >
                   F
@@ -24121,7 +24136,7 @@ function shouldHandleTimelineClearSelectionShortcut(target: EventTarget | null):
 }
 
 function hasBlockingGlobalShortcutLayer(): boolean {
-  return Boolean(document.querySelector('[role="menu"], [role="alertdialog"]'));
+  return Boolean(document.querySelector('.app-menu, [role="menu"], [role="alertdialog"]'));
 }
 
 function createSelectionFromItems(items: SelectionItem[]): SelectionState {

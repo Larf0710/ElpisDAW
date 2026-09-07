@@ -203,10 +203,7 @@ describe('Auto Patch production Local Engine integration', () => {
     expect((await realpath(stableAudio3Input.path)).toLowerCase()).toBe(
       (
         await realpath(
-          join(
-            projectRoot,
-            ...instrumentArtifact.file.relativePath.split('/'),
-          ),
+          join(projectRoot, ...instrumentArtifact.file.relativePath.split('/')),
         )
       ).toLowerCase(),
     );

@@ -1571,8 +1571,7 @@ describe('HumStudio v0.1 single-Project vertical acceptance', () => {
     expect(
       (
         await realpath(
-          recoveredRuntime.stableAudio3Workers[0].jobs[0].inputArtifacts[0]
-            .path,
+          recoveredRuntime.stableAudio3Workers[0].jobs[0].inputArtifacts[0].path,
         )
       ).toLowerCase(),
     ).toBe((await realpath(rawMixPath)).toLowerCase());

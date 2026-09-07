@@ -190,18 +190,26 @@ Technical compatibility does not grant redistribution permission.
 - [x] Select DCO 1.1 sign-off as the contributor-rights policy while keeping public contribution intake closed.
 - [x] Add a separate pre-public trademark policy for official-name, logo, Provider, and Extension claims.
 - [x] Add and verify the public repository CI workflow.
-- [ ] Re-run and retain the secret, privacy, binary, large-artifact, license, and manual-diff aggregate against the exact final candidate.
+- [x] Re-run and retain the secret, privacy, binary, large-artifact, license, and manual-diff aggregate against the exact Phase 1AD source candidate; Master approval remains pending.
 - [x] Implement and verify fail-closed production static UI serving through the Local Engine.
 - [x] Implement and verify the native production launcher and child-process lifecycle with an exact-package automated smoke.
 - [x] Implement and test deterministic portable-package materialization with pinned runtime provenance, notices, SBOM, exact manifest validation, and atomic output.
 - [x] Materialize and independently verify the current internal portable candidate from exact source commit `058c2046c8c2fe471e238656f5ecd0bc0439ad7b`.
 - [x] Seal the internal candidate twice as a byte-identical deterministic ZIP with matching external SHA-256 and exact extracted-package validation.
 - [x] Pass silent visible Edge app-mode QA from the extracted ZIP, including Engine readiness, empty browser warning/error capture, survival after Edge close, and child cleanup after launcher termination.
-- [ ] Exercise `Open ElpisDAW` and `Exit ElpisDAW` directly through the Windows notification-area menu.
+- [x] Exercise `Open ElpisDAW` and `Exit ElpisDAW` directly through the Windows notification-area menu against the sealed `c631cff` internal candidate; repeat against the exact final release candidate during clean-machine acceptance.
+- [x] Repeat `Open ElpisDAW`, `Exit ElpisDAW`, initial maximization, existing-window foregrounding, Edge-window close/reopen, and dedicated-profile Browser Save restart/restore against the exact committed `69a8646` post-Phase-1AF candidate.
+- [x] Adopt the project-owner-supplied official ElpisDAW icon, retain its exact source, and generate reviewed web and multi-resolution Windows assets.
+- [x] Embed the official icon into both native executables, load it in the notification area, publish it as the production favicon, and carry the trademark policy in portable packages.
+- [x] Materialize the exact post-icon `bf8afa6` candidate and confirm native validation, the focused notification-area icon, and the full-orbit Edge taskbar icon directly on Windows.
+- [x] Confirm the Explorer executable icon against exact candidate `bf8afa6`, then fix and directly confirm the Project Root picker taskbar icon against exact candidate `e96e7c9`.
+- [ ] Repeat the complete icon check against the final signed clean-machine candidate.
 - [x] Add a fail-closed clean-machine preflight runner for sealed ZIP checksum, archive topology, extraction-path, signature, packaged-runtime, launcher, Engine, alternate-port, and path-free evidence checks.
 - [x] Verify the preflight runner against the exact sealed internal ZIP across normal, spaced, and non-ASCII extraction paths, occupied-port fallback, corrupted-checksum rejection, unsigned-native rejection, and exact temporary cleanup.
 - [x] Add a staged Authenticode materialization boundary with pinned SignTool provenance, explicit certificate selection, RFC 3161 timestamping, post-signature verification, and fail-closed evidence validation.
 - [x] Materialize, seal twice, and preflight the exact post-signing-gate unsigned regression candidate; verify missing-certificate failure publishes no package or staging residue.
+- [x] Reconfirm Node.js `24.20.0` as the current Krypton LTS and revalidate the pinned official Windows x64 archive and executable SHA-256 values.
+- [x] Require deterministic Roslyn compilation for both native helpers and reproduce the complete `7e782e8` internal candidate and sealed ZIP byte-for-byte across two independent runs.
 - [ ] Materialize and accept the release-candidate package with the reconfirmed supported Node.js runtime and prebuilt native helpers.
 - [ ] Reproduce the exact release manifest, notices, SBOM, and checksums against the accepted release candidate.
 - [ ] Pass clean-machine Windows 11 x64 acceptance.
