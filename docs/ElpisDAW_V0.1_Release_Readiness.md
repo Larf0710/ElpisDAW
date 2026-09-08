@@ -36,6 +36,16 @@ after the Phase 1N candidate review:
 - Transitive dependency security checkpoint: `4738025207650f7877bc808c9a0e08296de9fe72`
 - Verified security-checkpoint CI run: `33851973579` — `Validate Windows source` passed
 
+Final Phase 1AL source-publication preparation was completed on 2026-09-08:
+
+- Final reviewed private product-source boundary: `7cebec92f9256133c83ebaaf64759b413e9b4c5e`
+- Sanitized public candidate: `738` files (`734` byte-identical, `4` reviewed transformations, and `58` excluded private or release-control entries)
+- Public repository code-sync checkpoint: `03a5c8e502abf0ed69c5a24fbbd9e4f3869f5d33`
+- Local public-checkout verification: TypeScript passed, production build passed, and `314/314` Vitest files passed with `2,394` tests passed and `2` skipped
+- Verified code-sync `main` CI run: `34175246680` — `Validate Windows source` passed
+- Code-sync public-history secret scan: `0` unexpected findings; the only detected value was a reviewed synthetic test token
+- Repository state at preparation completion: private, no tags, no GitHub Release, and no bundled Provider runtime, model, weight, or SoundFont
+
 This checkpoint authorizes no tag, end-user release, Provider or model
 redistribution, or binary package.
 
@@ -95,9 +105,11 @@ Internal release-control assessments, source-boundary procedures,
 provisional license matrices, and Windows distribution specifications are
 intentionally excluded from the first public snapshot.
 
-Phase 1 currently assesses public release readiness as **FAIL — PUBLIC RELEASE
-BLOCKED**. This does not revoke MVP Feature Complete status; it confirms that
-release acceptance remains pending.
+Phase 1 assesses V0.1 binary and supported end-user release readiness as **FAIL
+— PUBLIC BINARY RELEASE BLOCKED**. The source-publication boundary is ready for
+the scheduled GitHub visibility change, followed immediately by enabling and
+verifying private vulnerability reporting. This does not revoke MVP Feature
+Complete status; it confirms that binary release acceptance remains pending.
 
 ### Gate 1: Repository Integrity
 
@@ -182,15 +194,15 @@ Technical compatibility does not grant redistribution permission.
 - [x] Classify the exact generic-path metadata finding set with fail-closed drift detection.
 - [x] Run a pinned dedicated local secret scanner against the exact candidate and all reachable private history.
 - [x] Run the fail-closed source-license/provenance review against the exact candidate and installed Windows npm graph.
-- [x] Complete the technical manual source-to-candidate diff for the exact Phase 1K evaluated boundary.
+- [x] Complete the technical manual source-to-candidate diff for the exact Phase 1AL evaluated boundary.
 - [x] Specify a production launcher that does not require pnpm or Vite development mode.
 - [x] Specify portable-first packaging and defer the one-click installer until portable acceptance.
 - [x] Generate and obtain Master approval for the exact public snapshot manifest, transformations, and candidate contents.
-- [ ] Enable approved private security and conduct-reporting channels.
+- [ ] Immediately after the repository becomes public, enable GitHub private vulnerability reporting and verify that **Report a vulnerability** is visible.
 - [x] Select DCO 1.1 sign-off as the contributor-rights policy while keeping public contribution intake closed.
 - [x] Add a separate pre-public trademark policy for official-name, logo, Provider, and Extension claims.
 - [x] Add and verify the public repository CI workflow.
-- [x] Re-run and retain the secret, privacy, binary, large-artifact, license, and manual-diff aggregate against the exact Phase 1AD source candidate; Master approval remains pending.
+- [x] Re-run and retain the secret, privacy, binary, large-artifact, license, and manual-diff aggregate against the exact Phase 1AL source candidate, then record Master approval.
 - [x] Implement and verify fail-closed production static UI serving through the Local Engine.
 - [x] Implement and verify the native production launcher and child-process lifecycle with an exact-package automated smoke.
 - [x] Implement and test deterministic portable-package materialization with pinned runtime provenance, notices, SBOM, exact manifest validation, and atomic output.
@@ -213,7 +225,7 @@ Technical compatibility does not grant redistribution permission.
 - [x] Materialize and accept exact unsigned internal release candidate `b16b4be` with the reconfirmed Node.js `24.20.0` runtime and prebuilt native helpers.
 - [x] Reproduce all `124` package files, the exact release manifest, notices, SBOM, and the byte-identical sealed ZIP against candidate `b16b4be`.
 - [x] Complete the independent exact-candidate audit for `b16b4be`, including the full `325/325` test aggregate, public-boundary verification, metadata and license review, and the dedicated candidate-plus-history secret scan.
-- [ ] Advance and approve the public manual-diff and retained-candidate policies from `fae8f80` to the exact final source commit, then rerun and retain the complete public-source aggregate.
+- [x] Advance and approve the public manual-diff and retained-candidate policies through product source commit `7cebec92f9256133c83ebaaf64759b413e9b4c5e` and this documentation-only readiness amendment; synchronize the resulting candidate to public `main` and pass its CI.
 - [ ] Pass clean-machine Windows 11 x64 acceptance.
 - [ ] Decide and verify Authenticode signing for public binaries.
 - [ ] Verify upgrade, uninstall, data retention, and rollback before building the one-click installer.
