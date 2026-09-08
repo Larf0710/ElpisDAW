@@ -2,30 +2,34 @@
 
 ## Current Support Status
 
-ElpisDAW does not yet have a supported public release.
+ElpisDAW does not yet have a supported binary or end-user release.
 
 | Version | Supported |
 | --- | --- |
-| Public releases | None available |
-| Pre-release source | Not supported for end users |
+| Binary releases | None available |
+| Public source snapshot | Not supported for end users |
 
-Security support begins only after a public release candidate, reporting
-channel, and response process are explicitly approved.
+Security report intake begins only after the public source repository provides
+the private reporting channel described below. This does not create product
+support or a response-time SLA.
 
 ## Reporting a Vulnerability
 
 Do not disclose a suspected vulnerability in a public issue, discussion, pull
 request, social post, or shared Project file.
 
-Before the public repository opens, GitHub private vulnerability reporting must
-be enabled. Once enabled, use the repository's **Security** page and select
-**Report a vulnerability**. Do not send secrets, access tokens, private Projects,
-model weights, or unrelated personal data with a report.
+GitHub makes private vulnerability reporting available to public repositories.
+Immediately after this repository becomes public, its owner must open
+**Settings > Security and quality > Advanced Security** and enable **Private
+vulnerability reporting**. Once the repository's **Security** page shows
+**Report a vulnerability**, use that form. Do not send secrets, access tokens,
+private Projects, model weights, or unrelated personal data with a report.
 
-No public security-reporting address has been approved at the current
-pre-public stage. Until the private channel exists, external security report
-intake remains closed. This file must be updated before publication if the
-approved repository does not provide private vulnerability reporting.
+No public security-reporting address has been approved. Until **Report a
+vulnerability** is visible, external security report intake remains closed; do
+not disclose vulnerability details in a public issue. Repository visibility
+and private vulnerability reporting are separate GitHub settings, so the owner
+must verify both immediately after the visibility change.
 
 ## Useful Report Content
 

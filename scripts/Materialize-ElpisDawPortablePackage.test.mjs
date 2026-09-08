@@ -83,6 +83,7 @@ describe.runIf(process.platform === 'win32')('ElpisDAW portable package material
         'app/shared/protocol.js',
         'app/ui/elpisdaw-icon.png',
         'app/ui/index.html',
+        'docs/ElpisDAW_LLM_User_Guide.md',
         'licenses/AI_GENERATED_OUTPUT_NOTICE.md',
         'licenses/ElpisDAW-LICENSE.txt',
         'licenses/ElpisDAW-TRADEMARKS.md',
@@ -103,6 +104,20 @@ describe.runIf(process.platform === 'win32')('ElpisDAW portable package material
       'app/shared/projectPlaybackAudioWorkletCases.js',
     );
     expect(packageFiles.some((path) => path.endsWith('.d.ts'))).toBe(false);
+    expect(packageFiles.filter((path) => path.startsWith('docs/'))).toEqual([
+      'docs/ElpisDAW_LLM_User_Guide.md',
+    ]);
+    await expect(
+      readFile(join(first.packageRoot, 'docs', 'ElpisDAW_LLM_User_Guide.md')),
+    ).resolves.toEqual(fixture.userGuideBytes);
+    expect(
+      first.manifest.files.find(
+        (entry) => entry.path === 'docs/ElpisDAW_LLM_User_Guide.md',
+      ),
+    ).toMatchObject({
+      sha256: sha256(fixture.userGuideBytes),
+      sizeBytes: fixture.userGuideBytes.length,
+    });
     const notices = await readFile(
       join(first.packageRoot, 'licenses', 'THIRD_PARTY_NOTICES.md'),
       'utf8',
@@ -299,6 +314,24 @@ describe.runIf(process.platform === 'win32')('ElpisDAW portable package material
     ).toBe(false);
   });
 
+  it('rejects a missing user guide and removes staging without publishing', async () => {
+    const fixture = await createFixture();
+    await rm(join(fixture.repositoryPath, 'docs', 'ElpisDAW_LLM_User_Guide.md'));
+    const outputRoot = join(fixture.root, 'missing-user-guide');
+
+    await expect(materializeFixture(fixture, outputRoot)).rejects.toMatchObject({
+      code: 'REQUIRED_FILE_MISSING',
+      message: 'ElpisDAW LLM user guide is unavailable.',
+    });
+    expect(fixture.validationCalls).toEqual([]);
+    await expect(access(outputRoot)).rejects.toMatchObject({ code: 'ENOENT' });
+    expect(
+      (await readdir(fixture.root)).some((name) =>
+        name.startsWith('.elpisdaw-portable-staging-'),
+      ),
+    ).toBe(false);
+  });
+
   it('rejects existing and repository-overlapping output roots without changing them', async () => {
     const fixture = await createFixture();
     const existingOutput = join(fixture.root, 'existing-output');
@@ -329,6 +362,10 @@ async function createFixture() {
   const stabilityAiAgreementBytes = Buffer.from(
     'Fixture Stability AI Community License Agreement\n',
   );
+  const userGuideBytes = Buffer.from(
+    '# ElpisDAW LLM User Guide\n\nAsk one question at a time.\n',
+    'utf8',
+  );
   const components = [
     { name: 'react', version: '18.3.1' },
     { name: 'react-dom', version: '18.3.1' },
@@ -342,6 +379,12 @@ async function createFixture() {
   }));
 
   await writeFixtureFile(repositoryPath, 'LICENSE', 'Fixture MPL-2.0 license\n');
+  await writeFixtureFile(
+    repositoryPath,
+    'docs/ElpisDAW_LLM_User_Guide.md',
+    userGuideBytes,
+  );
+  await writeFixtureFile(repositoryPath, 'docs/private-notes.md', 'Do not bundle.\n');
   await writeFixtureFile(
     repositoryPath,
     'TRADEMARKS.md',
@@ -479,6 +522,7 @@ async function createFixture() {
     stabilityAiAgreementBytes,
     stabilityAiAgreementPath,
     stabilityAiProductUsePolicy,
+    userGuideBytes,
     validationCalls,
   };
 }

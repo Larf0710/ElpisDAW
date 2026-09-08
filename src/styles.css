@@ -232,7 +232,7 @@ button {
 }
 
 .header-help-message.scrolling span {
-  animation: header-help-scroll 8s ease-in-out 1s infinite alternate;
+  animation: header-help-scroll 9s ease-in-out 1s infinite;
   will-change: transform;
 }
 
@@ -241,6 +241,7 @@ button {
     transform: translateX(0);
   }
 
+  77.7778%,
   to {
     transform: translateX(calc(-1 * var(--help-scroll-distance, 0px)));
   }

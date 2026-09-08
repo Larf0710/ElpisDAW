@@ -210,8 +210,10 @@ Technical compatibility does not grant redistribution permission.
 - [x] Materialize, seal twice, and preflight the exact post-signing-gate unsigned regression candidate; verify missing-certificate failure publishes no package or staging residue.
 - [x] Reconfirm Node.js `24.20.0` as the current Krypton LTS and revalidate the pinned official Windows x64 archive and executable SHA-256 values.
 - [x] Require deterministic Roslyn compilation for both native helpers and reproduce the complete `7e782e8` internal candidate and sealed ZIP byte-for-byte across two independent runs.
-- [ ] Materialize and accept the release-candidate package with the reconfirmed supported Node.js runtime and prebuilt native helpers.
-- [ ] Reproduce the exact release manifest, notices, SBOM, and checksums against the accepted release candidate.
+- [x] Materialize and accept exact unsigned internal release candidate `b16b4be` with the reconfirmed Node.js `24.20.0` runtime and prebuilt native helpers.
+- [x] Reproduce all `124` package files, the exact release manifest, notices, SBOM, and the byte-identical sealed ZIP against candidate `b16b4be`.
+- [x] Complete the independent exact-candidate audit for `b16b4be`, including the full `325/325` test aggregate, public-boundary verification, metadata and license review, and the dedicated candidate-plus-history secret scan.
+- [ ] Advance and approve the public manual-diff and retained-candidate policies from `fae8f80` to the exact final source commit, then rerun and retain the complete public-source aggregate.
 - [ ] Pass clean-machine Windows 11 x64 acceptance.
 - [ ] Decide and verify Authenticode signing for public binaries.
 - [ ] Verify upgrade, uninstall, data retention, and rollback before building the one-click installer.

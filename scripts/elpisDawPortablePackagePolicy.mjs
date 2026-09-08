@@ -1,5 +1,5 @@
 export const ELPISDAW_PORTABLE_PACKAGE_POLICY_VERSION =
-  '2026-09-05-node-24.20.0-stability-product-use-v1';
+  '2026-09-08-llm-user-guide-v1';
 
 export const ELPISDAW_PORTABLE_PACKAGE = Object.freeze({
   manifestVersion: 1,

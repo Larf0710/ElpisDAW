@@ -36,6 +36,23 @@ External Provider availability, model quality, and redistribution rights are
 separate from ElpisDAW Core readiness. Model weights and Provider environments
 are not included in this repository.
 
+## User Guide and LLM Tutorials
+
+Read the standalone [ElpisDAW User Guide and LLM Tutorial Companion](./docs/ElpisDAW_LLM_User_Guide.md)
+for workspace concepts, saving and reopening, audio/MIDI workflows, optional
+AI generation, mixing, final WAV export, and troubleshooting.
+
+You can also attach that Markdown file to an LLM and ask for a step-by-step
+tutorial in your preferred language. No particular LLM is required. The guide
+is included at `docs/ElpisDAW_LLM_User_Guide.md` by the portable packaging workflow;
+it is not an in-app chat integration or a change to release availability.
+
+**LLM explanation accuracy and tutorial quality vary by model, version,
+settings, and conversation context.** Check advice against the actual app and
+its messages, especially before saving over existing work, deleting files, or
+installing anything. Do not upload private Projects, audio, or credentials just
+to ask a usage question.
+
 ## AI-Generated Outputs
 
 Provider and model terms remain separate from ElpisDAW. Before publishing,
@@ -58,6 +75,55 @@ because it contains private development metadata.
 The first planned binary is a portable Windows 11 x64 prerelease. A one-click
 installer is deferred until the portable package passes clean-machine, upgrade,
 uninstall, rollback, licensing, and data-safety acceptance.
+
+## Windows Preview Compatibility
+
+The planned portable preview targets 64-bit Windows 11. Its Core package is
+designed to include the runtime required to launch ElpisDAW without a separate
+Node.js, pnpm, Git, Python, .NET SDK, or C# compiler installation. Optional AI
+Provider runtimes, model weights, FluidSynth, and SoundFonts are not part of the
+portable Core package and must not prevent the Core application from starting.
+
+Compatibility across every Windows build, account policy, security product,
+GPU, and optional Provider environment cannot be guaranteed before the software
+is exercised on those systems. Prerelease users may therefore encounter
+machine-specific issues that were not reproduced on the development host.
+
+Current internal native test builds are unsigned. If an explicitly labeled
+unsigned preview is made available in the future, Windows SmartScreen or other
+security software may warn about or block it. Do not permanently disable
+Windows security or antivirus protection to run ElpisDAW. Verify the artifact
+name and published SHA-256 first, retain the exact warning, and report the
+problem instead of applying a broad security exclusion.
+
+ElpisDAW should explain when an optional Provider is unavailable and keep the
+Core workflow usable. Installing a Provider, obtaining model access, accepting
+its terms, and meeting its hardware requirements remain separate user choices.
+Provider compatibility on one GPU or runtime profile does not establish support
+for every configuration.
+
+## Reporting a Compatibility Problem
+
+For a launch, save, restart, security-warning, or Provider compatibility issue,
+include the following when it is safe to do so:
+
+- Windows edition, version, build number, and x64 architecture confirmation;
+- Microsoft Edge version;
+- exact ElpisDAW artifact filename and SHA-256;
+- whether SmartScreen or security software warned, blocked, or quarantined a
+  file, including the exact product name and message;
+- the last successful step and the smallest repeatable sequence that fails;
+- whether the Core application starts when optional Providers are unavailable;
+- the affected Provider name, configured runtime version, and GPU model when
+  the problem is Provider-specific; and
+- relevant screenshots and redacted logs.
+
+Do not attach private Projects, recordings, generated audio, model weights,
+Provider credentials, access tokens, or unredacted local paths unless a private
+support channel explicitly requests a safe minimal sample. Reproducible reports
+help the project distinguish an ElpisDAW defect from an unsupported or
+machine-specific environment; responsibility for investigating and fixing
+ElpisDAW defects remains with the project.
 
 ## Repository Boundary
 

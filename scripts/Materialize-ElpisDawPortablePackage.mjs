@@ -1198,6 +1198,11 @@ export async function materializeElpisDawPortablePackage({
       'AI-generated output notice',
     );
     await copyRegularFile(
+      join(canonicalRepositoryPath, 'docs', 'ElpisDAW_LLM_User_Guide.md'),
+      join(packageRoot, 'docs', 'ElpisDAW_LLM_User_Guide.md'),
+      'ElpisDAW LLM user guide',
+    );
+    await copyRegularFile(
       canonicalStabilityAiAgreementPath,
       join(packageRoot, 'licenses', 'Stability-AI-Community-License.md'),
       'Pinned Stability AI agreement',
