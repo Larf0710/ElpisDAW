@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { lstat, mkdir, open, readFile, realpath, unlink } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { isAbsolute, join, relative, resolve } from 'node:path';
+import { isAbsolute, join, parse, relative, resolve, sep } from 'node:path';
 
 import {
   STABLE_AUDIO_3_MODEL_REVISION,
@@ -291,21 +291,34 @@ async function resolveCanonicalModelDirectory(selectedPath) {
   const resolvedPath = resolve(trimmedPath);
   const selectedStat = await lstat(resolvedPath);
 
-  if (!selectedStat.isDirectory()) {
-    throw new Error('AI Model Library must be an existing directory.');
-  }
-
   if (selectedStat.isSymbolicLink()) {
     throw new Error('AI Model Library cannot be a symbolic link or junction.');
   }
 
-  const canonicalPath = await realpath(resolvedPath);
-
-  if (!pathsEqual(resolvedPath, canonicalPath)) {
-    throw new Error('AI Model Library cannot resolve through a symbolic link or junction.');
+  if (!selectedStat.isDirectory()) {
+    throw new Error('AI Model Library must be an existing directory.');
   }
 
-  return canonicalPath;
+  await assertPathDoesNotTraverseSymbolicLinkOrJunction(resolvedPath);
+
+  return realpath(resolvedPath);
+}
+
+async function assertPathDoesNotTraverseSymbolicLinkOrJunction(resolvedPath) {
+  const rootPath = parse(resolvedPath).root;
+  const pathSegments = relative(rootPath, resolvedPath)
+    .split(sep)
+    .filter(Boolean);
+  let currentPath = rootPath;
+
+  for (const pathSegment of pathSegments) {
+    currentPath = join(currentPath, pathSegment);
+    const pathStat = await lstat(currentPath);
+
+    if (pathStat.isSymbolicLink()) {
+      throw new Error('AI Model Library cannot resolve through a symbolic link or junction.');
+    }
+  }
 }
 
 async function verifyDirectoryWritable(rootPath) {

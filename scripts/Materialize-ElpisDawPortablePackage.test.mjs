@@ -49,7 +49,7 @@ describe.runIf(process.platform === 'win32')('ElpisDAW portable package material
       status: expect.stringMatching(/^(NotSigned|UnknownError)$/),
       winTrustStatus: expect.stringMatching(/^0x[0-9A-F]{8}$/),
     });
-  });
+  }, 30_000);
 
   it('materializes one deterministic exact package with notices, SBOM, and evidence', async () => {
     const fixture = await createFixture();

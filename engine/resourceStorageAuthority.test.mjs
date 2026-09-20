@@ -221,6 +221,31 @@ describe('ResourceStorageAuthority', () => {
     ).toThrow('ELPISDAW_DATA_ROOT must be an absolute path');
   });
 
+  it('rejects model roots that use symbolic link or junction components', async () => {
+    const localAppData = await createTemporaryDirectory();
+    const modelTargetRoot = await createTemporaryDirectory();
+    const aliasParent = await createTemporaryDirectory();
+    const linkType = process.platform === 'win32' ? 'junction' : 'dir';
+    const directAlias = join(aliasParent, 'model-root-link');
+    await symlink(modelTargetRoot, directAlias, linkType);
+    const authority = new ResourceStorageAuthority({
+      paths: resolveDefaultResourceStoragePaths({ localAppData, platform: 'win32' }),
+    });
+
+    await expect(
+      authority.configureAiModelLibrary(directAlias),
+    ).rejects.toThrow('cannot be a symbolic link or junction');
+
+    const nestedModelRoot = join(modelTargetRoot, 'nested-model-root');
+    await mkdir(nestedModelRoot);
+    const parentAlias = join(aliasParent, 'model-parent-link');
+    await symlink(modelTargetRoot, parentAlias, linkType);
+
+    await expect(
+      authority.configureAiModelLibrary(join(parentAlias, 'nested-model-root')),
+    ).rejects.toThrow('cannot resolve through a symbolic link or junction');
+  });
+
   it('canonicalizes protected junctions before checking model-library separation', async () => {
     const applicationRootPath = await createTemporaryDirectory();
     const applicationAliasParent = await createTemporaryDirectory();
