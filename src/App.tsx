@@ -13374,11 +13374,12 @@ function ResourceStorageSetupPanel({
         <div className="resource-storage-setup-heading">
           <span>Local Resource Setup</span>
           <strong id="resource-storage-setup-title">
-            Keep models portable or choose another folder
+            Choose model storage — no download starts here
           </strong>
           <p>
-            Stable Audio 3, ACE-Step, and future LoRAs can live beside ElpisDAW.
-            Choose another drive only when you want external model storage.
+            This step only selects where user-installed Stable Audio 3,
+            ACE-Step, and future LoRAs can live. Choose another drive only when
+            you want external model storage.
           </p>
           {configuredLibrary && (
             <p className="resource-storage-current-library">
@@ -13405,10 +13406,37 @@ function ResourceStorageSetupPanel({
           <span>V0.1</span>
           <p>
             This selection creates managed Stable Audio 3 and ACE-Step folders.
-            It also reserves a LoRA folder without enabling unsupported LoRA loading.
-            Downloads still require their own license and integrity checks. Changing
-            the library does not move existing model or LoRA files.
+            It does not download or install models or Provider runtimes. Follow
+            the manual setup guide and official Provider instructions, then
+            restart ElpisDAW so the Local Engine can validate them before use.
+            Changing the library does not move existing model or LoRA files.
           </p>
+          <nav
+            className="resource-storage-setup-links"
+            aria-label="Manual AI Provider setup links"
+          >
+            <a
+              href="https://github.com/Larf0710/ElpisDAW/blob/main/docs/ElpisDAW_LLM_User_Guide.md#install-optional-ai-providers-manually"
+              target="_blank"
+              rel="noreferrer"
+            >
+              SETUP GUIDE
+            </a>
+            <a
+              href="https://github.com/ace-step/ACE-Step-1.5/blob/v0.1.8/docs/en/INSTALL.md"
+              target="_blank"
+              rel="noreferrer"
+            >
+              ACE-STEP OFFICIAL
+            </a>
+            <a
+              href="https://huggingface.co/stabilityai/stable-audio-3-medium"
+              target="_blank"
+              rel="noreferrer"
+            >
+              STABLE AUDIO 3 ACCESS
+            </a>
+          </nav>
           {message && <strong role="alert">{message}</strong>}
         </div>
         <div className="resource-storage-setup-actions">

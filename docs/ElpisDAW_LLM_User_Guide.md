@@ -177,6 +177,90 @@ Model weights, Provider Python environments, FluidSynth, and SoundFonts are not
 bundled with the portable Core. A development machine may have resources that
 another machine lacks. Their absence does not mean the Core cannot start.
 
+### Install optional AI Providers manually
+
+The first-launch model-storage screen is a folder chooser, not an installer.
+`USE PORTABLE STORAGE` and `CHOOSE ANOTHER FOLDER` create the managed directory
+layout only. They do not download models, install Python, clone Provider code,
+accept licenses, or change GPU drivers. `CONTINUE CORE ONLY` keeps the ordinary
+DAW workflow available without an AI Provider.
+
+Use this order when you choose to add an AI Provider:
+
+1. Select portable or external AI model storage and note the displayed library
+   path.
+2. Fully exit ElpisDAW with the tray command `Exit ElpisDAW`.
+3. Open the official Provider page linked below. Install its runtime in a
+   separate versioned folder outside `ElpisDAW-Core`. Git and Python are optional
+   Provider prerequisites; they are not Core prerequisites.
+4. Download the exact model revisions into the managed paths shown below. Do not
+   use a third-party repack or a floating `main` snapshot.
+5. Configure the Provider environment's `python.exe` with the commands below.
+6. Relaunch ElpisDAW. Before a Provider operation can generate audio, the Local
+   Engine validates the Provider checkout, runtime, GPU profile, model revision,
+   retained files, sizes, and hashes. An unavailable result means the manual
+   installation does not match the supported profile; do not weaken or bypass
+   the validation.
+
+The current V0.1 compatibility targets are deliberately narrow:
+
+| Provider | Required Provider source | Required model source | Reviewed Windows runtime |
+| --- | --- | --- | --- |
+| ACE-Step 1.5 | Official tag `v0.1.8`, commit `dce621408bee8c31b4fcf4811682eb9359e1bc94` | `ACE-Step/Ace-Step1.5` at `19671f406d603126926c1b7e2adc169acbcade22`, plus `ACE-Step/acestep-v15-base` at `e432212fec32b8965a14ffa57ae653438d6abd14` | CPython 3.11, PyTorch and TorchAudio `2.7.1+cu128`, CUDA 12.8 |
+| Stable Audio 3 Medium | Official commit `9ae61a0ae72fb22c80caf00378c61882fff25921` | `stabilityai/stable-audio-3-medium` at `27b5a21b791b1b033d193a9e1e3ce78493f102f9` | CPython 3.10, PyTorch and TorchAudio `2.7.1+cu126`, CUDA 12.6, Flash Attention 2.8.3 |
+
+ElpisDAW creates this model layout under the selected AI Model Library:
+
+```text
+<AI Model Library>\
+|-- ace-step\
+|   `-- 19671f406d603126926c1b7e2adc169acbcade22\
+|       |-- Qwen3-Embedding-0.6B\...
+|       |-- vae\...
+|       `-- acestep-v15-base\...
+`-- stable-audio-3\
+    `-- 27b5a21b791b1b033d193a9e1e3ce78493f102f9\...
+```
+
+The official Hugging Face CLI can download an exact snapshot with
+`hf download REPOSITORY --revision COMMIT --local-dir PATH`. For ACE-Step, the
+three Python model-code files from the pinned Provider checkout's
+`acestep/models/base` directory must replace their same-named files in
+`acestep-v15-base`; this is the pinned Provider's own model-code synchronization
+step. Do not edit any other downloaded file. Stable Audio 3 is gated: sign in to
+Hugging Face and personally accept the model license and linked Gemma terms
+before downloading it. Do not give a token or password to ElpisDAW or an LLM.
+
+After the official runtime is installed, save only the two Python executable
+paths as Windows user environment variables. Replace the example paths with the
+actual Provider environments:
+
+```powershell
+setx.exe HUMSTUDIO_ACE_STEP_PYTHON "D:\AI\ACE-Step-1.5\.venv\Scripts\python.exe"
+setx.exe HUMSTUDIO_STABLE_AUDIO_3_PYTHON "D:\AI\stable-audio-3\.venv\Scripts\python.exe"
+```
+
+These retained `HUMSTUDIO_...` names are compatibility variables. `setx.exe`
+affects newly launched applications only, which is why ElpisDAW must be fully
+exited and restarted. The selected AI Model Library automatically supplies the
+model paths; do not store access tokens in these variables.
+
+Official setup and download sources:
+
+- [ACE-Step 1.5 installation guide (`v0.1.8`)](https://github.com/ace-step/ACE-Step-1.5/blob/v0.1.8/docs/en/INSTALL.md)
+- [ACE-Step pinned Provider checkout](https://github.com/ace-step/ACE-Step-1.5/tree/dce621408bee8c31b4fcf4811682eb9359e1bc94)
+- [ACE-Step pinned support snapshot](https://huggingface.co/ACE-Step/Ace-Step1.5/tree/19671f406d603126926c1b7e2adc169acbcade22)
+- [ACE-Step pinned Base snapshot](https://huggingface.co/ACE-Step/acestep-v15-base/tree/e432212fec32b8965a14ffa57ae653438d6abd14)
+- [Stable Audio 3 pinned Provider checkout](https://github.com/Stability-AI/stable-audio-3/tree/9ae61a0ae72fb22c80caf00378c61882fff25921)
+- [Stable Audio 3 Medium pinned model snapshot](https://huggingface.co/stabilityai/stable-audio-3-medium/tree/27b5a21b791b1b033d193a9e1e3ce78493f102f9)
+- [Official Hugging Face download guide](https://huggingface.co/docs/huggingface_hub/guides/download)
+
+The official upstream instructions may describe newer models or automatic
+downloads. Those can be valid for the upstream application while still being
+outside ElpisDAW V0.1's verified profile. ElpisDAW intentionally reports that
+mismatch instead of downloading a replacement or silently using an unverified
+configuration.
+
 Before pressing `PLAY`, choose a comfortable listening volume. Before `REC`,
 confirm the microphone and recording intent. Avoid recording private background
 conversations; use headphones if playback could feed into the microphone.

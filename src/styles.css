@@ -1519,6 +1519,30 @@ button {
   font-size: 0.68rem;
 }
 
+.resource-storage-setup-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 9px;
+}
+
+.resource-storage-setup-links a {
+  padding: 5px 7px;
+  border: 1px solid rgba(255, 176, 0, 0.38);
+  border-radius: 3px;
+  color: #ffe3a3;
+  font-size: 0.58rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-decoration: none;
+}
+
+.resource-storage-setup-links a:hover,
+.resource-storage-setup-links a:focus-visible {
+  border-color: var(--amber);
+  color: #fff4d5;
+}
+
 .resource-storage-setup-actions {
   grid-column: 1 / -1;
   display: flex;

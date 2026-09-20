@@ -102,6 +102,14 @@ its terms, and meeting its hardware requirements remain separate user choices.
 Provider compatibility on one GPU or runtime profile does not establish support
 for every configuration.
 
+Choosing AI model storage on first launch creates folders only. It does not
+download model weights or install Provider runtimes. Use the
+[manual Provider setup guide](docs/ElpisDAW_LLM_User_Guide.md#install-optional-ai-providers-manually),
+follow only the linked official upstream instructions, and accept any gated
+model terms yourself. Fully exit ElpisDAW from its tray menu and relaunch it
+after setup; before Provider execution, the Local Engine validates the installed
+revision, files, and runtime profile without downloading or repairing them.
+
 The portable launcher keeps mutable product data in `ElpisDAW-Data` beside the
 verified `ElpisDAW-Core` application folder. After ElpisDAW is closed, the outer
 directory may be renamed when `ElpisDAW-Core` and `ElpisDAW-Data` remain
