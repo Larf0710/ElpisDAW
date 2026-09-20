@@ -5,6 +5,10 @@ import { join } from 'node:path';
 
 import { BasicPitchJobExecutor } from '../engine/jobs/basicPitchJobExecutor.mjs';
 import { ProjectRootAuthority } from '../engine/projectRootAuthority.mjs';
+import {
+  ResourceStorageAuthority,
+  resolveDefaultResourceStoragePaths,
+} from '../engine/resourceStorageAuthority.mjs';
 import { startLocalEngineServer } from '../engine/server.mjs';
 import { LocalEngineClient } from './localEngineClient.ts';
 import { resolveActiveMidiTake } from './activeMidiTake.ts';
@@ -36,13 +40,12 @@ afterEach(async () => {
 describe('Completed Job Artifact registration integration', () => {
   it('registers the real Mock Provider output only after Engine completion', async () => {
     const projectRoot = await createTemporaryDirectory();
-    const engine = await startLocalEngineServer({
+    const engine = await startTestEngine({
       port: 0,
       projectRootAuthority: new ProjectRootAuthority(),
       selectProjectRoot: async () => projectRoot,
       token: launchToken,
     });
-    runningEngines.add(engine);
     const client = new LocalEngineClient({
       baseUrl: engine.baseUrl,
       token: launchToken,
@@ -120,13 +123,12 @@ describe('Completed Job Artifact registration integration', () => {
 
   it('fails commit availability after finalized Mock output deletion or size drift', async () => {
     const projectRoot = await createTemporaryDirectory();
-    const engine = await startLocalEngineServer({
+    const engine = await startTestEngine({
       port: 0,
       projectRootAuthority: new ProjectRootAuthority(),
       selectProjectRoot: async () => projectRoot,
       token: launchToken,
     });
-    runningEngines.add(engine);
     const client = new LocalEngineClient({
       baseUrl: engine.baseUrl,
       token: launchToken,
@@ -183,13 +185,12 @@ describe('Completed Job Artifact registration integration', () => {
 describe('Recording Artifact registration integration', () => {
   it('persists an uploaded WAV and registers it as one active Recording Take', async () => {
     const projectRoot = await createTemporaryDirectory();
-    const engine = await startLocalEngineServer({
+    const engine = await startTestEngine({
       port: 0,
       projectRootAuthority: new ProjectRootAuthority(),
       selectProjectRoot: async () => projectRoot,
       token: launchToken,
     });
-    runningEngines.add(engine);
     const client = new LocalEngineClient({
       baseUrl: engine.baseUrl,
       token: launchToken,
@@ -256,13 +257,12 @@ describe('Recording Artifact registration integration', () => {
 describe('Hum-to-MIDI Artifact registration integration', () => {
   it('converts one saved Recording Take through Engine and registers one MIDI Take', async () => {
     const projectRoot = await createTemporaryDirectory();
-    const engine = await startLocalEngineServer({
+    const engine = await startTestEngine({
       port: 0,
       projectRootAuthority: new ProjectRootAuthority(),
       selectProjectRoot: async () => projectRoot,
       token: launchToken,
     });
-    runningEngines.add(engine);
     const client = new LocalEngineClient({
       baseUrl: engine.baseUrl,
       token: launchToken,
@@ -363,14 +363,13 @@ describe('Hum-to-MIDI Artifact registration integration', () => {
       createWorkerClient: () => new IntegrationBasicPitchWorkerClient(),
       projectRootAuthority,
     });
-    const engine = await startLocalEngineServer({
+    const engine = await startTestEngine({
       basicPitchJobExecutor,
       port: 0,
       projectRootAuthority,
       selectProjectRoot: async () => projectRoot,
       token: launchToken,
     });
-    runningEngines.add(engine);
     const client = new LocalEngineClient({
       baseUrl: engine.baseUrl,
       token: launchToken,
@@ -489,13 +488,12 @@ describe('Hum-to-MIDI Artifact registration integration', () => {
 describe('Instrument Render Artifact registration integration', () => {
   it('renders the Active MIDI Take and registers one Instrument Audio Take', async () => {
     const projectRoot = await createTemporaryDirectory();
-    const engine = await startLocalEngineServer({
+    const engine = await startTestEngine({
       port: 0,
       projectRootAuthority: new ProjectRootAuthority(),
       selectProjectRoot: async () => projectRoot,
       token: launchToken,
     });
-    runningEngines.add(engine);
     const client = new LocalEngineClient({
       baseUrl: engine.baseUrl,
       token: launchToken,
@@ -861,4 +859,19 @@ async function createTemporaryDirectory() {
   const directory = await mkdtemp(join(tmpdir(), 'humstudio-registration-integration-'));
   temporaryDirectories.add(directory);
   return directory;
+}
+
+async function startTestEngine(options) {
+  const resourceStorageAuthority = new ResourceStorageAuthority({
+    paths: resolveDefaultResourceStoragePaths({
+      localAppData: await createTemporaryDirectory(),
+      platform: 'win32',
+    }),
+  });
+  const engine = await startLocalEngineServer({
+    resourceStorageAuthority,
+    ...options,
+  });
+  runningEngines.add(engine);
+  return engine;
 }

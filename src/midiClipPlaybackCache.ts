@@ -226,6 +226,10 @@ export function hasRequestedSoundFontMidiClips(project: ProjectState): boolean {
   );
 }
 
+export function hasRequestedMidiClips(project: ProjectState): boolean {
+  return collectRequestedMidiClips(project).length > 0;
+}
+
 async function createCacheEntry(
   project: ProjectState,
   clip: Clip,

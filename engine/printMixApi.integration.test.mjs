@@ -32,6 +32,10 @@ import {
 } from '../src/printMixTestFixture.ts';
 import { createOutputWave, writeOutputBlock } from './projectPcmMixdownRenderer.mjs';
 import { ProjectRootAuthority } from './projectRootAuthority.mjs';
+import {
+  ResourceStorageAuthority,
+  resolveDefaultResourceStoragePaths,
+} from './resourceStorageAuthority.mjs';
 import { startLocalEngineServer } from './server.mjs';
 
 const ALLOWED_ORIGIN = 'http://127.0.0.1:5173';
@@ -560,9 +564,16 @@ function createCompletedResult(plan) {
 }
 
 async function startTestEngine(overrides = {}) {
+  const resourceStorageAuthority = new ResourceStorageAuthority({
+    paths: resolveDefaultResourceStoragePaths({
+      localAppData: await createTemporaryDirectory(),
+      platform: 'win32',
+    }),
+  });
   const engine = await startLocalEngineServer({
     allowedOrigin: ALLOWED_ORIGIN,
     port: 0,
+    resourceStorageAuthority,
     token: LAUNCH_TOKEN,
     ...overrides,
   });

@@ -20,6 +20,10 @@ import { FluidSynthJobExecutor } from '../engine/jobs/fluidSynthJobExecutor.mjs'
 import { StableAudio3JobExecutor } from '../engine/jobs/stableAudio3JobExecutor.mjs';
 import { ProjectRootAuthority } from '../engine/projectRootAuthority.mjs';
 import {
+  ResourceStorageAuthority,
+  resolveDefaultResourceStoragePaths,
+} from '../engine/resourceStorageAuthority.mjs';
+import {
   BASIC_PITCH_MODEL_ID,
   BASIC_PITCH_MODEL_REVISION,
   BASIC_PITCH_PROVIDER_ID,
@@ -2222,6 +2226,7 @@ async function startRuntime(projectRoot) {
     generatedArtifactFinalizer,
     port: 0,
     projectRootAuthority,
+    resourceStorageAuthority: await createTestResourceStorageAuthority(),
     selectProjectRoot: async () => projectRoot,
     stableAudio3JobExecutor,
     token: launchToken,
@@ -2927,4 +2932,13 @@ async function createTemporaryDirectory() {
   );
   temporaryDirectories.add(directory);
   return directory;
+}
+
+async function createTestResourceStorageAuthority() {
+  return new ResourceStorageAuthority({
+    paths: resolveDefaultResourceStoragePaths({
+      localAppData: await createTemporaryDirectory(),
+      platform: 'win32',
+    }),
+  });
 }

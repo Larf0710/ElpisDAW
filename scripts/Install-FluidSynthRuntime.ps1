@@ -44,12 +44,32 @@ function Assert-RuntimeFileHashes {
   }
 }
 
-$projectRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
-$runtimeRoot = [System.IO.Path]::GetFullPath(
-  (Join-Path $projectRoot "engine\bin\fluidsynth\$version")
-)
+$configuredDataRoot = [Environment]::GetEnvironmentVariable('ELPISDAW_DATA_ROOT', 'Process')
+
+if (-not [String]::IsNullOrWhiteSpace($configuredDataRoot)) {
+  if (-not [System.IO.Path]::IsPathRooted($configuredDataRoot)) {
+    throw 'ELPISDAW_DATA_ROOT must contain an absolute path.'
+  }
+
+  $elpisDataRoot = [System.IO.Path]::GetFullPath($configuredDataRoot)
+}
+else {
+  $localAppDataRoot = [Environment]::GetFolderPath(
+    [Environment+SpecialFolder]::LocalApplicationData
+  )
+
+  if ([String]::IsNullOrWhiteSpace($localAppDataRoot)) {
+    throw 'Windows LocalAppData is required for the ElpisDAW FluidSynth runtime.'
+  }
+
+  $elpisDataRoot = Join-Path $localAppDataRoot 'ElpisDAW'
+}
+
 $expectedRuntimeParent = [System.IO.Path]::GetFullPath(
-  (Join-Path $projectRoot 'engine\bin\fluidsynth')
+  (Join-Path $elpisDataRoot 'Runtimes\FluidSynth')
+)
+$runtimeRoot = [System.IO.Path]::GetFullPath(
+  (Join-Path $expectedRuntimeParent $version)
 )
 
 if (
@@ -58,7 +78,7 @@ if (
     [System.StringComparison]::OrdinalIgnoreCase
   )
 ) {
-  throw 'FluidSynth runtime target escaped the expected Engine directory.'
+  throw 'FluidSynth runtime target escaped the ElpisDAW data directory.'
 }
 
 $requiredFiles = @(
@@ -104,6 +124,7 @@ $stagingRoot = Join-Path (
 
 try {
   New-Item -ItemType Directory -Path $temporaryRoot | Out-Null
+  New-Item -ItemType Directory -Path $expectedRuntimeParent -Force | Out-Null
   Invoke-WebRequest -Uri $archiveUri -OutFile $archivePath
   $actualSha256 = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
 

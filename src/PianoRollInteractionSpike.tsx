@@ -23,6 +23,7 @@ import {
   snapMidiTick,
 } from './midiNoteEditing';
 import {
+  MIDI_SOUND_SETUP_GUIDANCE,
   PianoRollSoundFontControl,
   type PianoRollSoundFontCatalogState,
 } from './PianoRollSoundFontControl';
@@ -1974,13 +1975,17 @@ function ResolvedPianoRollInteractionSpike({
                 });
               }}
               title={
-                pianoRollLiveNotePreviewState.status === 'ERROR' ||
+                !liveNotePreviewResource
+                  ? MIDI_SOUND_SETUP_GUIDANCE
+                  : pianoRollLiveNotePreviewState.status === 'ERROR' ||
                 pianoRollLiveNotePreviewState.status === 'PREPARING'
                   ? pianoRollLiveNotePreviewState.message
                   : 'Play the selected SoundFont when notes are placed, selected, or transposed'
               }
             >
-              {pianoRollLiveNotePreviewState.status === 'PREPARING'
+              {!liveNotePreviewResource
+                ? 'NO MIDI SOUND'
+                : pianoRollLiveNotePreviewState.status === 'PREPARING'
                 ? 'PREVIEW...'
                 : isLiveNotePreviewEnabled
                   ? 'PREVIEW ON'

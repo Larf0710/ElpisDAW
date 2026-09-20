@@ -30,6 +30,7 @@ export async function loadDefaultSoundFontManifest() {
 
 export async function createDefaultSoundFontBuiltinDefinition({
   projectDirectory = HUMSTUDIO_PROJECT_DIRECTORY,
+  runtimeRootPath,
 } = {}) {
   const manifest = await loadDefaultSoundFontManifest();
   const soundFontFileName = basename(manifest.preferredSoundFontRelativePath);
@@ -48,19 +49,21 @@ export async function createDefaultSoundFontBuiltinDefinition({
     throw new Error('Default SoundFont asset format is unsupported.');
   }
 
-  const runtimeRootPath = resolve(
-    validateAbsoluteDirectoryPath(projectDirectory, 'ElpisDAW project directory'),
-    manifest.runtimeRelativeDirectory,
-  );
+  const resolvedRuntimeRootPath = runtimeRootPath
+    ? validateAbsoluteDirectoryPath(runtimeRootPath, 'Default SoundFont runtime root')
+    : resolve(
+        validateAbsoluteDirectoryPath(projectDirectory, 'ElpisDAW project directory'),
+        manifest.runtimeRelativeDirectory,
+      );
 
   return Object.freeze({
-    absolutePath: resolveAssetPath(runtimeRootPath, asset.fileName),
+    absolutePath: resolveAssetPath(resolvedRuntimeRootPath, asset.fileName),
     expectedSha256: asset.sha256,
     format,
     library: 'builtin',
     name: asset.fileName,
     relativePath: manifest.preferredSoundFontRelativePath,
-    runtimeRootPath,
+    runtimeRootPath: resolvedRuntimeRootPath,
     sizeBytes: asset.sizeBytes,
   });
 }

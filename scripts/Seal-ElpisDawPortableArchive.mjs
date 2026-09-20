@@ -249,7 +249,8 @@ function validateArchivePolicy(policy) {
     policy.formatVersion !== 1 ||
     policy.nodeSha256 !== ELPISDAW_NODE_RUNTIME.nodeSha256 ||
     policy.nodeVersion !== ELPISDAW_NODE_RUNTIME.version ||
-    policy.rootDirectoryName !== ELPISDAW_PORTABLE_PACKAGE.product ||
+    policy.rootDirectoryName !==
+      ELPISDAW_PORTABLE_PACKAGE.applicationDirectoryName ||
     typeof policy.zlibVersion !== 'string' ||
     policy.zlibVersion.length === 0
   ) {

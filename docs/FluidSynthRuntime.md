@@ -1,6 +1,6 @@
 # FluidSynth Runtime
 
-HumStudio uses FluidSynth 2.5.7 for Piano Roll SoundFont monitoring, ephemeral
+ElpisDAW uses FluidSynth 2.5.7 for Piano Roll SoundFont monitoring, ephemeral
 MIDI Clip Timeline playback, and finalized `MIDI TO AUDIO` rendering.
 
 ## Scope
@@ -13,10 +13,10 @@ MIDI Clip Timeline playback, and finalized `MIDI TO AUDIO` rendering.
 - Timeline MIDI playback cache persistence: none
 - `MIDI TO AUDIO` persistence: finalized Project Artifact and Instrument Audio
   Clip Take
-- Distribution: the runtime binaries are installed locally under the Git-ignored `engine/bin/fluidsynth/2.5.7/` directory
+- Portable installation: `ElpisDAW-Data\Runtimes\FluidSynth\2.5.7`
 
-The HumStudio Launcher installs the pinned MuseScore General assets under the
-Git-ignored internal runtime directory and exposes `MuseScore_General.sf3` as
+ElpisDAW reserves `ElpisDAW-Data\Resources\SoundFonts` for the pinned
+MuseScore General assets and exposes `MuseScore_General.sf3` as
 the built-in default. The asset license and sample-source inventory are retained
 beside the SoundFont. Users may add other properly licensed `.sf2` or `.sf3`
 files to the active Project `soundfonts/` directory; these remain custom
@@ -53,8 +53,9 @@ Official references:
 - Project: https://www.fluidsynth.org/
 - License FAQ: https://www.fluidsynth.org/wiki/LicensingFAQ/
 
-This installer is for a local Git-ignored runtime. It is not an approved
-redistribution manifest. The official archives omit complete license and notice
+This installer targets `ELPISDAW_DATA_ROOT` when supplied by the portable
+launcher and retains the LocalAppData fallback for source development. It is not
+an approved redistribution manifest. The official archives omit complete license and notice
 sets for static codec components inside `sndfile.dll`; do not copy this runtime
 into an ElpisDAW package or managed download until the full notice, source,
 replacement, and final-artifact review passes.
@@ -63,7 +64,7 @@ replacement, and final-artifact review passes.
 
 1. After Local Engine and Project Root are ready, the UI loads the combined
    built-in and custom SoundFont catalog automatically.
-2. HumStudio asynchronously warms the built-in MuseScore General resource with
+2. ElpisDAW asynchronously warms the built-in MuseScore General resource with
    Bank 0 and Program 0. This work does not delay the Engine Ready state.
 3. Piano Roll uses the Clip assignment when present; otherwise it selects the
    warmed built-in voice. Custom Project SoundFonts remain lazy-loaded.

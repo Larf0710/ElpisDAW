@@ -102,6 +102,18 @@ its terms, and meeting its hardware requirements remain separate user choices.
 Provider compatibility on one GPU or runtime profile does not establish support
 for every configuration.
 
+The portable launcher keeps mutable product data in `ElpisDAW-Data` beside the
+verified `ElpisDAW-Core` application folder. After ElpisDAW is closed, the outer
+directory may be renamed when `ElpisDAW-Core` and `ElpisDAW-Data` remain
+siblings and move together.
+SoundFonts, FluidSynth, Basic Pitch, browser state, settings, large AI models,
+and reserved LoRA storage therefore survive replacement of the Core folder.
+Large AI models default to
+`ElpisDAW-Data\Models`; users may choose an external model library instead.
+This storage setup does not bypass Provider access, license, integrity, or
+compatibility checks, and the reserved LoRA folder does not imply LoRA runtime
+support.
+
 ## Reporting a Compatibility Problem
 
 For a launch, save, restart, security-warning, or Provider compatibility issue,

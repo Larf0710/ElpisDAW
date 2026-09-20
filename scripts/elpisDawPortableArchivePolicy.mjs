@@ -1,7 +1,10 @@
-import { ELPISDAW_NODE_RUNTIME } from './elpisDawPortablePackagePolicy.mjs';
+import {
+  ELPISDAW_NODE_RUNTIME,
+  ELPISDAW_PORTABLE_PACKAGE,
+} from './elpisDawPortablePackagePolicy.mjs';
 
 export const ELPISDAW_PORTABLE_ARCHIVE_POLICY_VERSION =
-  '2026-09-05-deterministic-zip-v1';
+  '2026-09-12-core-directory-layout-v1';
 
 export const ELPISDAW_PORTABLE_ARCHIVE = Object.freeze({
   compression: 'deflate',
@@ -12,6 +15,6 @@ export const ELPISDAW_PORTABLE_ARCHIVE = Object.freeze({
   formatVersion: 1,
   nodeSha256: ELPISDAW_NODE_RUNTIME.nodeSha256,
   nodeVersion: ELPISDAW_NODE_RUNTIME.version,
-  rootDirectoryName: 'ElpisDAW',
+  rootDirectoryName: ELPISDAW_PORTABLE_PACKAGE.applicationDirectoryName,
   zlibVersion: '1.3.2.1-motley-42c2f19',
 });

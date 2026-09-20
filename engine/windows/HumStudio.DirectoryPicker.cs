@@ -20,6 +20,14 @@ namespace HumStudio.Windows
             try
             {
                 resultFilePath = GetResultFilePath(args);
+                var windowTitle = GetOption(args, "--window-title", "ElpisDAW Project Root");
+                var dialogTitle = GetOption(args, "--dialog-title", "Select ElpisDAW Project Root");
+                var ownerMessage = GetOption(
+                    args,
+                    "--owner-message",
+                    "Opening the Windows folder picker...\n" +
+                    "If another app is in front, select ElpisDAW Project Root on the taskbar."
+                );
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
 
@@ -34,7 +42,7 @@ namespace HumStudio.Windows
                 string selectedPath = null;
                 int dialogResult = ErrorCancelled;
 
-                using (var owner = CreateOwnerWindow())
+                using (var owner = CreateOwnerWindow(windowTitle, ownerMessage))
                 {
                     owner.Shown += delegate
                     {
@@ -44,7 +52,11 @@ namespace HumStudio.Windows
                             owner.BringToFront();
                             NativeMethods.SetForegroundWindow(owner.Handle);
 
-                            dialogResult = ShowDirectoryPicker(owner.Handle, out selectedPath);
+                            dialogResult = ShowDirectoryPicker(
+                                owner.Handle,
+                                dialogTitle,
+                                out selectedPath
+                            );
                             owner.Close();
                         });
                     };
@@ -63,7 +75,7 @@ namespace HumStudio.Windows
                 if (String.IsNullOrWhiteSpace(selectedPath))
                 {
                     throw new InvalidOperationException(
-                        "Windows returned an empty Project Root path."
+                        "Windows returned an empty directory path."
                     );
                 }
 
@@ -106,12 +118,32 @@ namespace HumStudio.Windows
             return Path.GetFullPath(args[optionIndex + 1]);
         }
 
+        private static string GetOption(string[] args, string name, string fallback)
+        {
+            var optionIndex = Array.IndexOf(args, name);
+
+            if (optionIndex < 0)
+            {
+                return fallback;
+            }
+
+            if (
+                optionIndex + 1 >= args.Length ||
+                String.IsNullOrWhiteSpace(args[optionIndex + 1])
+            )
+            {
+                throw new ArgumentException(name + " requires one non-empty value.");
+            }
+
+            return args[optionIndex + 1].Replace("\n", "\r\n");
+        }
+
         private static void WriteResult(string resultFilePath, string result)
         {
             File.WriteAllText(resultFilePath, result, new UTF8Encoding(false));
         }
 
-        private static Form CreateOwnerWindow()
+        private static Form CreateOwnerWindow(string windowTitle, string ownerMessage)
         {
             Icon ownerIcon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
 
@@ -136,7 +168,7 @@ namespace HumStudio.Windows
                     ShowIcon = true,
                     ShowInTaskbar = true,
                     StartPosition = FormStartPosition.CenterScreen,
-                    Text = "ElpisDAW Project Root",
+                    Text = windowTitle,
                     TopMost = true
                 };
 
@@ -149,8 +181,7 @@ namespace HumStudio.Windows
                     Font = new Font("Segoe UI", 10F, FontStyle.Regular),
                     ForeColor = Color.White,
                     Padding = new Padding(24),
-                    Text = "Opening the Windows folder picker...\r\n" +
-                           "If another app is in front, select ElpisDAW Project Root on the taskbar.",
+                    Text = ownerMessage,
                     TextAlign = ContentAlignment.MiddleLeft
                 });
 
@@ -163,7 +194,11 @@ namespace HumStudio.Windows
             }
         }
 
-        private static int ShowDirectoryPicker(IntPtr ownerHandle, out string selectedPath)
+        private static int ShowDirectoryPicker(
+            IntPtr ownerHandle,
+            string dialogTitle,
+            out string selectedPath
+        )
         {
             selectedPath = null;
             IFileOpenDialog dialog = null;
@@ -181,7 +216,7 @@ namespace HumStudio.Windows
                     FileOpenOptions.PathMustExist |
                     FileOpenOptions.NoChangeDirectory
                 );
-                dialog.SetTitle("Select ElpisDAW Project Root");
+                dialog.SetTitle(dialogTitle);
                 dialog.SetOkButtonLabel("Select Folder");
 
                 var showResult = dialog.Show(ownerHandle);
@@ -239,12 +274,15 @@ namespace HumStudio.Windows
 
         private static void VerifyOwnerWindowIcon()
         {
-            using (var owner = CreateOwnerWindow())
+            using (var owner = CreateOwnerWindow(
+                "ElpisDAW Directory Picker",
+                "Checking the Windows folder picker."
+            ))
             {
                 if (owner.Icon == null || owner.Icon.Handle == IntPtr.Zero)
                 {
                     throw new InvalidOperationException(
-                        "The ElpisDAW Project Root window icon is unavailable."
+                        "The ElpisDAW directory picker window icon is unavailable."
                     );
                 }
             }

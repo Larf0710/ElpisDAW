@@ -30,6 +30,9 @@ export type PianoRollSoundFontAuditionState =
   | Readonly<{ status: 'IDLE' }>
   | Readonly<{ message: string; status: 'RENDERING' | 'PLAYING' | 'ERROR' }>;
 
+export const MIDI_SOUND_SETUP_GUIDANCE =
+  'The portable Core includes MIDI editing but does not bundle FluidSynth or a SoundFont. ElpisDAW stores optional MIDI sound resources under the sibling ElpisDAW-Data folder so app updates leave them intact. Install the resources, choose DOCK 01 MAIN > SoundFont > RESCAN, then retry Piano Roll preview or Timeline MIDI playback. Licensed Project Root / soundfonts remain supported for project-specific voices.';
+
 export function PianoRollSoundFontControl({
   assignment,
   catalogState,
@@ -92,6 +95,8 @@ export function PianoRollSoundFontControl({
     ? 'OFFLINE'
     : assignment
       ? `B${assignment.bank} P${assignment.program}`
+      : catalogState.status === 'READY' && resources.length === 0
+        ? 'SETUP'
       : resources.some((resource) => resource.library === 'builtin')
         ? 'BUILT-IN'
         : 'SELECT';
@@ -246,7 +251,11 @@ export function PianoRollSoundFontControl({
         aria-controls="piano-roll-soundfont-panel"
         aria-expanded={isOpen}
         onClick={openPanel}
-        title="Use the built-in voice or select a custom SoundFont, Bank, and Program for this MIDI Clip"
+        title={
+          catalogState.status === 'READY' && resources.length === 0
+            ? MIDI_SOUND_SETUP_GUIDANCE
+            : 'Use the built-in voice or select a custom SoundFont, Bank, and Program for this MIDI Clip'
+        }
       >
         <span>SOUNDFONT</span>
         <small>{triggerStatus}</small>
@@ -465,7 +474,9 @@ function SoundFontCatalogReadout({
     <output
       className={`piano-roll-soundfont-help ${
         isAssignmentOffline ||
-        catalogState.status === 'ERROR'
+        catalogState.status === 'ERROR' ||
+        (catalogState.status === 'READY' &&
+          catalogState.catalog.resources.length === 0)
           ? 'warning'
           : ''
       }`}
@@ -501,7 +512,7 @@ function getCatalogStatus(
     ? `${state.catalog.resources.length} SET${
         state.catalog.resources.length === 1 ? '' : 'S'
       } READY`
-    : 'NO SOUNDFONTS FOUND';
+    : 'MIDI SOUND SETUP REQUIRED';
 }
 
 function getCatalogHelp(state: PianoRollSoundFontCatalogState): string {
@@ -517,13 +528,17 @@ function getCatalogHelp(state: PianoRollSoundFontCatalogState): string {
     return 'Reading built-in and custom SoundFonts.';
   }
 
+  if (state.catalog.resources.length === 0) {
+    return MIDI_SOUND_SETUP_GUIDANCE;
+  }
+
   if (state.catalog.issues.length > 0) {
     return `${state.catalog.issues.length} catalog issue${
       state.catalog.issues.length === 1 ? '' : 's'
     } skipped.`;
   }
 
-  return 'MuseScore General is built in. Place licensed custom .sf2 or .sf3 files in the Project soundfonts directory.';
+  return 'Select a ready SoundFont voice for this MIDI Clip. Place licensed custom .sf2 or .sf3 files in the Project soundfonts directory.';
 }
 
 function getFileName(relativePath: string): string {

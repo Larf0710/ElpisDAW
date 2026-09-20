@@ -1,16 +1,22 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-const appSource = readFileSync(new URL('./App.tsx', import.meta.url), 'utf8');
-const controlSource = readFileSync(
-  new URL('./PianoRollSoundFontControl.tsx', import.meta.url),
-  'utf8',
+function normalizeSource(text) {
+  return text.replace(/\r\n?/g, '\n');
+}
+
+const appSource = normalizeSource(
+  readFileSync(new URL('./App.tsx', import.meta.url), 'utf8'),
 );
-const editorSource = readFileSync(
-  new URL('./PianoRollInteractionSpike.tsx', import.meta.url),
-  'utf8',
+const controlSource = normalizeSource(
+  readFileSync(new URL('./PianoRollSoundFontControl.tsx', import.meta.url), 'utf8'),
 );
-const stylesSource = readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
+const editorSource = normalizeSource(
+  readFileSync(new URL('./PianoRollInteractionSpike.tsx', import.meta.url), 'utf8'),
+);
+const stylesSource = normalizeSource(
+  readFileSync(new URL('./styles.css', import.meta.url), 'utf8'),
+);
 
 describe('visible Piano Roll SoundFont voice contract', () => {
   it('threads the real preset catalog into the Piano Roll SoundFont menu', () => {
@@ -31,6 +37,19 @@ describe('visible Piano Roll SoundFont voice contract', () => {
     expect(controlSource).toContain('APPLIED');
     expect(controlSource).toContain('PREVIEW');
     expect(stylesSource).toContain('.piano-roll-soundfont-voice-indicator');
+  });
+
+  it('explains missing portable MIDI sound instead of failing silently', () => {
+    expect(controlSource).toContain('MIDI_SOUND_SETUP_GUIDANCE');
+    expect(controlSource).toContain('MIDI SOUND SETUP REQUIRED');
+    expect(controlSource).toContain('under the sibling ElpisDAW-Data folder');
+    expect(controlSource).toContain('so app updates leave them intact');
+    expect(controlSource).toContain('Project Root / soundfonts remain supported');
+    expect(controlSource).toContain('DOCK 01 MAIN > SoundFont > RESCAN');
+    expect(controlSource).toContain('does not bundle FluidSynth or a SoundFont');
+    expect(editorSource).toContain("'NO MIDI SOUND'");
+    expect(appSource).toContain('hasRequestedMidiClips(project)');
+    expect(appSource).toContain("? 'MIDI SOUND SETUP REQUIRED'");
   });
 
   it('applies SoundFont selections immediately without legacy action buttons', () => {

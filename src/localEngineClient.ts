@@ -1,5 +1,7 @@
 import {
   LOCAL_ENGINE_ACE_STEP_LYRICS_PATH,
+  LOCAL_ENGINE_AI_MODEL_LIBRARY_PORTABLE_PATH,
+  LOCAL_ENGINE_AI_MODEL_LIBRARY_SELECT_PATH,
   LOCAL_ENGINE_AUDIO_FILES_PATH,
   LOCAL_ENGINE_BASIC_PITCH_RUNTIME_PATH,
   LOCAL_ENGINE_GENERATED_AUDIO_AVAILABILITY_PATH,
@@ -15,6 +17,7 @@ import {
   LOCAL_ENGINE_PROJECT_ROOT_SELECT_PATH,
   LOCAL_ENGINE_PROTOCOL_VERSION,
   LOCAL_ENGINE_RECORDINGS_PATH,
+  LOCAL_ENGINE_RESOURCE_STORAGE_PATH,
   LOCAL_ENGINE_SOUNDFONT_AUDITION_PATH,
   LOCAL_ENGINE_SOUNDFONT_LIVE_PREVIEW_PATH,
   LOCAL_ENGINE_SOUNDFONT_PRESETS_PATH,
@@ -259,6 +262,42 @@ export type LocalEngineProjectFileLoad = Readonly<{
 
 export type LocalEngineProjectFileLoadResult =
   | { loadedProject: LocalEngineProjectFileLoad; ok: true }
+  | {
+      ok: false;
+      message: string;
+      reason: LocalEngineHealthFailureReason;
+      status?: number;
+    };
+
+export type LocalEngineResourceStorage = Readonly<{
+  aiModelLibrary:
+    | Readonly<{ recoveryIssue?: string; status: 'UNSET' }>
+    | Readonly<{
+        configuredAt: string;
+        directories: Readonly<{
+          aceStep: string;
+          loras: string;
+          stableAudio3: string;
+        }>;
+        mode: 'PORTABLE' | 'EXTERNAL';
+        rootPath: string;
+        status: 'READY';
+      }>;
+  fixedResources: Readonly<{
+    basicPitchRuntime: Readonly<{ path: string; policy: 'APP_MANAGED' }>;
+    fluidSynthRuntime: Readonly<{ path: string; policy: 'APP_MANAGED' }>;
+    soundFonts: Readonly<{ path: string; policy: 'APP_MANAGED' }>;
+  }>;
+  portableAiModelLibraryPath: string;
+  policyVersion: 2;
+}>;
+
+export type LocalEngineResourceStorageResult =
+  | {
+      ok: true;
+      selection?: LocalEngineProjectRootSelection;
+      storage: LocalEngineResourceStorage;
+    }
   | {
       ok: false;
       message: string;
@@ -614,6 +653,8 @@ const validSoundFontIssueReasons = new Set<LocalEngineSoundFontIssueReason>([
 
 export class LocalEngineClient {
   readonly #aceStepLyricsUrl: string;
+  readonly #aiModelLibraryPortableUrl: string;
+  readonly #aiModelLibrarySelectUrl: string;
   readonly #audioFilesUrl: string;
   readonly #basicPitchRuntimeUrl: string;
   readonly #fetch: LocalEngineFetch;
@@ -628,6 +669,7 @@ export class LocalEngineClient {
   readonly #projectMixdownTimeoutMs: number;
   readonly #projectStemPrintsUrl: string;
   readonly #recordingsUrl: string;
+  readonly #resourceStorageUrl: string;
   readonly #soundFontAuditionUrl: string;
   readonly #soundFontLivePreviewUrl: string;
   readonly #soundFontPresetsUrl: string;
@@ -649,6 +691,14 @@ export class LocalEngineClient {
     const engineOrigin = createEngineOrigin(baseUrl);
     this.#aceStepLyricsUrl = new URL(
       LOCAL_ENGINE_ACE_STEP_LYRICS_PATH,
+      `${engineOrigin}/`,
+    ).toString();
+    this.#aiModelLibraryPortableUrl = new URL(
+      LOCAL_ENGINE_AI_MODEL_LIBRARY_PORTABLE_PATH,
+      `${engineOrigin}/`,
+    ).toString();
+    this.#aiModelLibrarySelectUrl = new URL(
+      LOCAL_ENGINE_AI_MODEL_LIBRARY_SELECT_PATH,
       `${engineOrigin}/`,
     ).toString();
     this.#audioFilesUrl = new URL(
@@ -683,6 +733,10 @@ export class LocalEngineClient {
       `${engineOrigin}/`,
     ).toString();
     this.#recordingsUrl = new URL(LOCAL_ENGINE_RECORDINGS_PATH, `${engineOrigin}/`).toString();
+    this.#resourceStorageUrl = new URL(
+      LOCAL_ENGINE_RESOURCE_STORAGE_PATH,
+      `${engineOrigin}/`,
+    ).toString();
     this.#soundFontAuditionUrl = new URL(
       LOCAL_ENGINE_SOUNDFONT_AUDITION_PATH,
       `${engineOrigin}/`,
@@ -782,6 +836,16 @@ export class LocalEngineClient {
 
   async getProjectRoot(): Promise<LocalEngineProjectRootResult> {
     return this.#requestProjectRoot(this.#projectRootUrl, 'GET', this.#timeoutMs, false);
+  }
+
+  async getResourceStorage(): Promise<LocalEngineResourceStorageResult> {
+    const result = await this.#requestJsonApi(
+      this.#resourceStorageUrl,
+      { method: 'GET' },
+      parseLocalEngineResourceStorage,
+      'resource storage inspection',
+    );
+    return result.ok ? { ok: true, storage: result.value } : result;
   }
 
   async checkBasicPitchRuntime(): Promise<LocalEngineBasicPitchRuntimeResult> {
@@ -1334,6 +1398,41 @@ export class LocalEngineClient {
     }
   }
 
+  async selectAiModelLibrary(): Promise<LocalEngineResourceStorageResult> {
+    const result = await this.#requestJsonApi(
+      this.#aiModelLibrarySelectUrl,
+      { method: 'POST' },
+      (value) => {
+        const storage = parseLocalEngineResourceStorage(value);
+        const selection = parseProjectRootSelection(value);
+        return storage && selection ? { selection, storage } : undefined;
+      },
+      'AI Model Library selection',
+      10 * 60_000,
+    );
+
+    return result.ok
+      ? { ok: true, selection: result.value.selection, storage: result.value.storage }
+      : result;
+  }
+
+  async usePortableAiModelLibrary(): Promise<LocalEngineResourceStorageResult> {
+    const result = await this.#requestJsonApi(
+      this.#aiModelLibraryPortableUrl,
+      { method: 'POST' },
+      (value) => {
+        const storage = parseLocalEngineResourceStorage(value);
+        const selection = parseProjectRootSelection(value);
+        return storage && selection ? { selection, storage } : undefined;
+      },
+      'portable AI Model Library setup',
+    );
+
+    return result.ok
+      ? { ok: true, selection: result.value.selection, storage: result.value.storage }
+      : result;
+  }
+
   async saveRecordingWav(recordingWav: Blob): Promise<LocalEngineRecordingSaveResult> {
     if (!(recordingWav instanceof Blob) || recordingWav.type !== 'audio/wav') {
       throw new TypeError('Recording upload requires an audio/wav Blob.');
@@ -1772,7 +1871,9 @@ export class LocalEngineClient {
 
       if (!response.ok) {
         return {
-          message: `Local Engine Project Root request failed with HTTP ${response.status}.`,
+          message:
+            (await readEngineErrorBody(response)) ??
+            `Local Engine Project Root request failed with HTTP ${response.status}.`,
           ok: false,
           reason: 'http-error',
           status: response.status,
@@ -2174,6 +2275,109 @@ export function parseLocalEngineSoundFontCatalog(
     scannedAt: value.scannedAt,
     supportedFormats: Object.freeze(['sf2', 'sf3'] as const),
   });
+}
+
+export function parseLocalEngineResourceStorage(
+  value: unknown,
+): LocalEngineResourceStorage | undefined {
+  if (
+    !isRecord(value) ||
+    value.policyVersion !== 2 ||
+    !isRecord(value.aiModelLibrary) ||
+    !isRecord(value.fixedResources) ||
+    typeof value.portableAiModelLibraryPath !== 'string' ||
+    value.portableAiModelLibraryPath.length === 0
+  ) {
+    return undefined;
+  }
+
+  const fixedResources = parseFixedResourceStorage(value.fixedResources);
+
+  if (!fixedResources) {
+    return undefined;
+  }
+
+  if (value.aiModelLibrary.status === 'UNSET') {
+    if (
+      value.aiModelLibrary.recoveryIssue !== undefined &&
+      typeof value.aiModelLibrary.recoveryIssue !== 'string'
+    ) {
+      return undefined;
+    }
+
+    return Object.freeze({
+      aiModelLibrary: Object.freeze({
+        ...(value.aiModelLibrary.recoveryIssue
+          ? { recoveryIssue: value.aiModelLibrary.recoveryIssue }
+          : {}),
+        status: 'UNSET' as const,
+      }),
+      fixedResources,
+      portableAiModelLibraryPath: value.portableAiModelLibraryPath,
+      policyVersion: 2 as const,
+    });
+  }
+
+  if (
+    value.aiModelLibrary.status !== 'READY' ||
+    typeof value.aiModelLibrary.configuredAt !== 'string' ||
+    Number.isNaN(Date.parse(value.aiModelLibrary.configuredAt)) ||
+    (value.aiModelLibrary.mode !== 'PORTABLE' &&
+      value.aiModelLibrary.mode !== 'EXTERNAL') ||
+    typeof value.aiModelLibrary.rootPath !== 'string' ||
+    value.aiModelLibrary.rootPath.length === 0 ||
+    !isRecord(value.aiModelLibrary.directories) ||
+    typeof value.aiModelLibrary.directories.aceStep !== 'string' ||
+    value.aiModelLibrary.directories.aceStep.length === 0 ||
+    typeof value.aiModelLibrary.directories.loras !== 'string' ||
+    value.aiModelLibrary.directories.loras.length === 0 ||
+    typeof value.aiModelLibrary.directories.stableAudio3 !== 'string' ||
+    value.aiModelLibrary.directories.stableAudio3.length === 0
+  ) {
+    return undefined;
+  }
+
+  return Object.freeze({
+    aiModelLibrary: Object.freeze({
+      configuredAt: value.aiModelLibrary.configuredAt,
+      directories: Object.freeze({
+        aceStep: value.aiModelLibrary.directories.aceStep,
+        loras: value.aiModelLibrary.directories.loras,
+        stableAudio3: value.aiModelLibrary.directories.stableAudio3,
+      }),
+      mode: value.aiModelLibrary.mode,
+      rootPath: value.aiModelLibrary.rootPath,
+      status: 'READY' as const,
+    }),
+    fixedResources,
+    portableAiModelLibraryPath: value.portableAiModelLibraryPath,
+    policyVersion: 2 as const,
+  });
+}
+
+function parseFixedResourceStorage(
+  value: Record<string, unknown>,
+): LocalEngineResourceStorage['fixedResources'] | undefined {
+  const basicPitchRuntime = parseAppManagedResource(value.basicPitchRuntime);
+  const fluidSynthRuntime = parseAppManagedResource(value.fluidSynthRuntime);
+  const soundFonts = parseAppManagedResource(value.soundFonts);
+
+  if (!basicPitchRuntime || !fluidSynthRuntime || !soundFonts) {
+    return undefined;
+  }
+
+  return Object.freeze({ basicPitchRuntime, fluidSynthRuntime, soundFonts });
+}
+
+function parseAppManagedResource(
+  value: unknown,
+): Readonly<{ path: string; policy: 'APP_MANAGED' }> | undefined {
+  return isRecord(value) &&
+    value.policy === 'APP_MANAGED' &&
+    typeof value.path === 'string' &&
+    value.path.length > 0
+    ? Object.freeze({ path: value.path, policy: 'APP_MANAGED' as const })
+    : undefined;
 }
 
 export function parseLocalEngineSoundFontPresetCatalog(

@@ -1,20 +1,17 @@
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { resolve } from 'node:path';
 
 import {
   installDefaultSoundFontAssets,
   loadDefaultSoundFontManifest,
 } from '../engine/defaultSoundFontProvisioner.mjs';
-
-const scriptDirectory = dirname(fileURLToPath(import.meta.url));
-const projectRoot = resolve(scriptDirectory, '..');
+import { resolveDefaultResourceStoragePaths } from '../engine/resourceStorageAuthority.mjs';
 
 const options = parseArguments(process.argv.slice(2));
 
 try {
   const manifest = await loadDefaultSoundFontManifest();
   const runtimeRoot = resolve(
-    options.runtimeRoot ?? resolve(projectRoot, manifest.runtimeRelativeDirectory),
+    options.runtimeRoot ?? resolveDefaultResourceStoragePaths().soundFontsPath,
   );
   const result = await installDefaultSoundFontAssets({
     destinationRoot: runtimeRoot,

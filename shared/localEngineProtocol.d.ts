@@ -18,6 +18,9 @@ export const LOCAL_ENGINE_PROJECT_STEM_PRINTS_PATH: '/api/v1/project-stem-prints
 export const LOCAL_ENGINE_PROJECT_ROOT_PATH: '/api/v1/project-root';
 export const LOCAL_ENGINE_PROJECT_ROOT_SELECT_PATH: '/api/v1/project-root/select';
 export const LOCAL_ENGINE_RECORDINGS_PATH: '/api/v1/recordings';
+export const LOCAL_ENGINE_RESOURCE_STORAGE_PATH: '/api/v1/resource-storage';
+export const LOCAL_ENGINE_AI_MODEL_LIBRARY_PORTABLE_PATH: '/api/v1/resource-storage/ai-model-library/portable';
+export const LOCAL_ENGINE_AI_MODEL_LIBRARY_SELECT_PATH: '/api/v1/resource-storage/ai-model-library/select';
 export const LOCAL_ENGINE_SOUNDFONTS_PATH: '/api/v1/soundfonts';
 export const LOCAL_ENGINE_SOUNDFONT_AUDITION_PATH: '/api/v1/soundfonts/audition';
 export const LOCAL_ENGINE_SOUNDFONT_LIVE_PREVIEW_PATH: '/api/v1/soundfonts/live-preview';

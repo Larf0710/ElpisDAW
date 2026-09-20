@@ -45,6 +45,7 @@ import type {
   LocalEngineGpuJobState,
   LocalEngineProjectFileSave,
   LocalEngineProjectRoot,
+  LocalEngineResourceStorage,
   LocalEngineSoundFontPresetCatalogResult,
   LocalEngineSoundFontResource,
 } from './localEngineClient';
@@ -114,9 +115,10 @@ import {
   type TimelineExpandTransitionCoordinator,
   type TimelineFlipTransitionCoordinator,
 } from './studioTimelineExpandTransition';
-import type {
-  PianoRollSoundFontAuditionState,
-  PianoRollSoundFontCatalogState,
+import {
+  MIDI_SOUND_SETUP_GUIDANCE,
+  type PianoRollSoundFontAuditionState,
+  type PianoRollSoundFontCatalogState,
 } from './PianoRollSoundFontControl';
 import {
   createNewPianoRollTake,
@@ -312,6 +314,7 @@ import {
   createProjectPlaybackPlan,
 } from './projectPlaybackPlan';
 import {
+  hasRequestedMidiClips,
   hasRequestedSoundFontMidiClips,
   MidiClipPlaybackCache,
   type MidiClipPlaybackCachePreparation,
@@ -570,6 +573,26 @@ type ProjectRootUiState =
   | Readonly<{ status: 'UNAVAILABLE' | 'LOADING' | 'SELECTING' | 'UNSET' }>
   | Readonly<{ message: string; status: 'ERROR' }>
   | Readonly<{ projectRoot: ReadyProjectRoot; status: 'READY' }>;
+type ProjectRootSelectionNoticeState = Readonly<{
+  id: string;
+  message: string;
+}>;
+type ResourceStorageUiState =
+  | Readonly<{ status: 'LOADING' | 'UNAVAILABLE' }>
+  | Readonly<{
+      storage: LocalEngineResourceStorage;
+      status: 'READY';
+    }>
+  | Readonly<{
+      operation: 'EXTERNAL' | 'PORTABLE';
+      storage: LocalEngineResourceStorage;
+      status: 'SELECTING';
+    }>
+  | Readonly<{
+      message: string;
+      storage?: LocalEngineResourceStorage;
+      status: 'ERROR';
+    }>;
 type ProjectFileSaveUiState =
   | Readonly<{ status: 'IDLE' | 'SAVING' }>
   | Readonly<{ savedProject: LocalEngineProjectFileSave; status: 'SAVED' }>
@@ -625,6 +648,8 @@ type TimelineStatusFeedback = {
   message: string;
   tone: 'error' | 'success' | 'warning';
 };
+
+const PROJECT_ROOT_SELECTION_NOTICE_DURATION_MS = 10_000;
 
 type TimelineRevealRequest = {
   clipId: string;
@@ -1023,6 +1048,10 @@ export default function App({ engineBootstrap }: { engineBootstrap?: LocalEngine
   const [projectRootState, setProjectRootState] = useState<ProjectRootUiState>({
     status: 'UNAVAILABLE',
   });
+  const [resourceStorageState, setResourceStorageState] =
+    useState<ResourceStorageUiState>({ status: 'UNAVAILABLE' });
+  const [isResourceStorageSetupDismissed, setIsResourceStorageSetupDismissed] =
+    useState(false);
   const [soundFontCatalogState, setSoundFontCatalogState] =
     useState<PianoRollSoundFontCatalogState>({ status: 'UNAVAILABLE' });
   const [soundFontAuditionState, setSoundFontAuditionState] =
@@ -1104,6 +1133,8 @@ export default function App({ engineBootstrap }: { engineBootstrap?: LocalEngine
   );
   const [timelineClipClipboard, setTimelineClipClipboard] = useState<TimelineClipClipboard>();
   const [safetyConfirmRequest, setSafetyConfirmRequest] = useState<SafetyConfirmRequest>();
+  const [projectRootSelectionNotice, setProjectRootSelectionNotice] =
+    useState<ProjectRootSelectionNoticeState>();
   const [importError, setImportError] = useState<string>();
   const [timelineStatusFeedback, setTimelineStatusFeedback] = useState<TimelineStatusFeedback>();
   const [isTimelineExportPreparing, setIsTimelineExportPreparing] = useState(false);
@@ -1160,6 +1191,7 @@ export default function App({ engineBootstrap }: { engineBootstrap?: LocalEngine
   const pendingSourceRelinkClipIdRef = useRef<string | undefined>(undefined);
   const localEngineClientRef = useRef<LocalEngineClient>();
   const loadedProjectRootInstanceIdRef = useRef<string>();
+  const loadedResourceStorageInstanceIdRef = useRef<string>();
   const productionEditorRef = useRef<HTMLElement>(null);
   const topDockViewportRef = useRef<HTMLDivElement>(null);
   const timelineExpandTransitionRef = useRef<TimelineExpandTransitionCoordinator>();
@@ -1172,6 +1204,7 @@ export default function App({ engineBootstrap }: { engineBootstrap?: LocalEngine
   const projectFileSaveRequestIdRef = useRef(0);
   const projectRootProjectOpenRequestIdRef = useRef(0);
   const projectRootRequestIdRef = useRef(0);
+  const resourceStorageRequestIdRef = useRef(0);
   const clipTakeActivationRequestIdRef = useRef(0);
   const basicPitchRuntimeRequestIdRef = useRef(0);
   const soundFontCatalogRequestIdRef = useRef(0);
@@ -1217,6 +1250,7 @@ export default function App({ engineBootstrap }: { engineBootstrap?: LocalEngine
   const autoPatchProductionInProgressRef = useRef(false);
   const autoPatchProductionRequestIdRef = useRef(0);
   const clipTakeFileDeletionInProgressRef = useRef(false);
+  const projectRootSelectionNoticeTimeoutRef = useRef<number>();
   const timelineStatusFeedbackTimeoutRef = useRef<number>();
   const workspaceEditSequenceRef = useRef(0);
   const updateRecordingRuntimePhase = useCallback((phase: RecordingRuntimePhase) => {
@@ -1345,6 +1379,45 @@ export default function App({ engineBootstrap }: { engineBootstrap?: LocalEngine
       setProjectRootState(
         result.ok
           ? createProjectRootUiState(result.projectRoot)
+          : { message: result.message, status: 'ERROR' },
+      );
+    });
+  }, [engineConnection.instanceId, engineConnection.lifecycle]);
+
+  useEffect(() => {
+    const client = localEngineClientRef.current;
+    const instanceId = engineConnection.instanceId;
+
+    if (engineConnection.lifecycle !== 'READY' || !client || !instanceId) {
+      loadedResourceStorageInstanceIdRef.current = undefined;
+      resourceStorageRequestIdRef.current += 1;
+      setResourceStorageState((currentState) =>
+        currentState.status === 'UNAVAILABLE'
+          ? currentState
+          : { status: 'UNAVAILABLE' },
+      );
+      return;
+    }
+
+    if (loadedResourceStorageInstanceIdRef.current === instanceId) {
+      return;
+    }
+
+    loadedResourceStorageInstanceIdRef.current = instanceId;
+    const requestId = ++resourceStorageRequestIdRef.current;
+    setResourceStorageState({ status: 'LOADING' });
+
+    void client.getResourceStorage().then((result) => {
+      if (resourceStorageRequestIdRef.current !== requestId) {
+        return;
+      }
+
+      setIsResourceStorageSetupDismissed(
+        result.ok && result.storage.aiModelLibrary.status === 'READY',
+      );
+      setResourceStorageState(
+        result.ok
+          ? { status: 'READY', storage: result.storage }
           : { message: result.message, status: 'ERROR' },
       );
     });
@@ -1887,6 +1960,28 @@ export default function App({ engineBootstrap }: { engineBootstrap?: LocalEngine
     setSafetyConfirmRequest(undefined);
     request?.onConfirm();
   }, [safetyConfirmRequest]);
+  const clearProjectRootSelectionNotice = useCallback(() => {
+    setProjectRootSelectionNotice(undefined);
+
+    if (projectRootSelectionNoticeTimeoutRef.current !== undefined) {
+      window.clearTimeout(projectRootSelectionNoticeTimeoutRef.current);
+      projectRootSelectionNoticeTimeoutRef.current = undefined;
+    }
+  }, []);
+  const showProjectRootSelectionNotice = useCallback((message: string) => {
+    if (projectRootSelectionNoticeTimeoutRef.current !== undefined) {
+      window.clearTimeout(projectRootSelectionNoticeTimeoutRef.current);
+    }
+
+    setProjectRootSelectionNotice({
+      id: `project-root-selection-notice-${Date.now()}`,
+      message,
+    });
+    projectRootSelectionNoticeTimeoutRef.current = window.setTimeout(() => {
+      setProjectRootSelectionNotice(undefined);
+      projectRootSelectionNoticeTimeoutRef.current = undefined;
+    }, PROJECT_ROOT_SELECTION_NOTICE_DURATION_MS);
+  }, []);
   const showTimelineStatusFeedback = useCallback((feedback: TimelineStatusFeedback) => {
     setTimelineStatusFeedback(feedback);
     setHeaderHelpMessage(feedback.helpText);
@@ -2666,6 +2761,9 @@ export default function App({ engineBootstrap }: { engineBootstrap?: LocalEngine
 
   useEffect(() => {
     return () => {
+      if (projectRootSelectionNoticeTimeoutRef.current !== undefined) {
+        window.clearTimeout(projectRootSelectionNoticeTimeoutRef.current);
+      }
       if (timelineStatusFeedbackTimeoutRef.current !== undefined) {
         window.clearTimeout(timelineStatusFeedbackTimeoutRef.current);
       }
@@ -3947,7 +4045,7 @@ export default function App({ engineBootstrap }: { engineBootstrap?: LocalEngine
       `${preview.clip.name} created at the playhead on ${preview.track.name}${
         defaultSoundFontResource
           ? ` with ${defaultSoundFontResource.name}, Bank 0, Program 0.`
-          : '.'
+          : `. ${MIDI_SOUND_SETUP_GUIDANCE}`
       }`,
     );
   }, [project, soundFontCatalogState, updateWorkspaceState]);
@@ -5458,14 +5556,23 @@ export default function App({ engineBootstrap }: { engineBootstrap?: LocalEngine
     const availability = createPlanAt(project.playheadTick);
 
     if (!availability.canPlay) {
+      const helpText =
+        hasRequestedMidiClips(project) &&
+        (availability.reason === 'no-playable-material' ||
+          availability.reason === 'target-unplayable')
+          ? MIDI_SOUND_SETUP_GUIDANCE
+          : availability.message;
       recordProjectPlaybackDiagnostic('ui-play-blocked', {
         gate: 'initial-plan',
-        message: availability.message,
+        message: helpText,
         reason: availability.reason,
       });
       showTimelineStatusFeedback({
-        helpText: availability.message,
-        message: 'PLAYBACK LOCKED',
+        helpText,
+        message:
+          helpText === MIDI_SOUND_SETUP_GUIDANCE
+            ? 'MIDI SOUND SETUP REQUIRED'
+            : 'PLAYBACK LOCKED',
         tone: 'warning',
       });
       return;
@@ -12150,12 +12257,14 @@ export default function App({ engineBootstrap }: { engineBootstrap?: LocalEngine
       return;
     }
 
-    projectRootProjectOpenRequestIdRef.current += 1;
-    authorizedProjectRootPathRef.current = undefined;
-    setIsProjectRootProjectOpenInProgress(false);
+    const previousReadyProjectRootState =
+      projectRootState.status === 'READY' ? projectRootState : undefined;
     const requestId = ++projectRootRequestIdRef.current;
+    clearProjectRootSelectionNotice();
     setProjectRootState({ status: 'SELECTING' });
-    setHeaderHelpMessage('Select one Windows directory as the ElpisDAW Project Root.');
+    setHeaderHelpMessage(
+      'Choose a new empty folder for this Project or select an existing ElpisDAW Project Root.',
+    );
     const result = await client.selectProjectRoot();
 
     if (projectRootRequestIdRef.current !== requestId) {
@@ -12163,13 +12272,22 @@ export default function App({ engineBootstrap }: { engineBootstrap?: LocalEngine
     }
 
     if (!result.ok) {
-      setProjectRootState({ message: result.message, status: 'ERROR' });
-      setHeaderHelpMessage(result.message);
+      const message = previousReadyProjectRootState
+        ? `${result.message} The previous Project Root remains active.`
+        : result.message;
+      setProjectRootState(
+        previousReadyProjectRootState ?? { message: result.message, status: 'ERROR' },
+      );
+      setHeaderHelpMessage(message);
+      showProjectRootSelectionNotice(message);
       return;
     }
 
     setProjectRootState(createProjectRootUiState(result.projectRoot));
     if (result.selection === 'SELECTED') {
+      projectRootProjectOpenRequestIdRef.current += 1;
+      authorizedProjectRootPathRef.current = undefined;
+      setIsProjectRootProjectOpenInProgress(false);
       setProjectFileSaveState({ status: 'IDLE' });
     }
     setHeaderHelpMessage(
@@ -12179,7 +12297,111 @@ export default function App({ engineBootstrap }: { engineBootstrap?: LocalEngine
           ? `Project Root ready: ${result.projectRoot.rootPath}`
           : 'Project Root remains unset.',
     );
-  }, [engineConnection.activity, engineConnection.lifecycle, projectRootState.status]);
+  }, [
+    clearProjectRootSelectionNotice,
+    engineConnection.activity,
+    engineConnection.lifecycle,
+    projectRootState,
+    showProjectRootSelectionNotice,
+  ]);
+
+  const handleSelectAiModelLibrary = useCallback(async () => {
+    const client = localEngineClientRef.current;
+    const storage =
+      resourceStorageState.status === 'READY' ||
+      resourceStorageState.status === 'SELECTING' ||
+      resourceStorageState.status === 'ERROR'
+        ? resourceStorageState.storage
+        : undefined;
+
+    if (
+      !client ||
+      !storage ||
+      engineConnection.lifecycle !== 'READY' ||
+      engineConnection.activity !== 'IDLE' ||
+      resourceStorageState.status === 'SELECTING'
+    ) {
+      setHeaderHelpMessage(
+        'AI Model Library selection requires an idle, ready Local Engine.',
+      );
+      return;
+    }
+
+    const requestId = ++resourceStorageRequestIdRef.current;
+    setResourceStorageState({ operation: 'EXTERNAL', status: 'SELECTING', storage });
+    setHeaderHelpMessage('Choose an external folder for large ElpisDAW AI models.');
+    const result = await client.selectAiModelLibrary();
+
+    if (resourceStorageRequestIdRef.current !== requestId) {
+      return;
+    }
+
+    if (!result.ok) {
+      setResourceStorageState({ message: result.message, status: 'ERROR', storage });
+      setHeaderHelpMessage(result.message);
+      return;
+    }
+
+    setResourceStorageState({ status: 'READY', storage: result.storage });
+    if (result.selection === 'SELECTED') {
+      setIsResourceStorageSetupDismissed(true);
+    }
+    setHeaderHelpMessage(
+      result.selection === 'CANCELED'
+        ? 'AI Model Library selection was canceled. Core features remain available.'
+        : result.storage.aiModelLibrary.status === 'READY'
+          ? `AI Model Library ready: ${result.storage.aiModelLibrary.rootPath}`
+          : 'AI Model Library remains unset.',
+    );
+  }, [engineConnection.activity, engineConnection.lifecycle, resourceStorageState]);
+
+  const handleUsePortableAiModelLibrary = useCallback(async () => {
+    const client = localEngineClientRef.current;
+    const storage =
+      resourceStorageState.status === 'READY' ||
+      resourceStorageState.status === 'SELECTING' ||
+      resourceStorageState.status === 'ERROR'
+        ? resourceStorageState.storage
+        : undefined;
+
+    if (
+      !client ||
+      !storage ||
+      engineConnection.lifecycle !== 'READY' ||
+      engineConnection.activity !== 'IDLE' ||
+      resourceStorageState.status === 'SELECTING'
+    ) {
+      setHeaderHelpMessage(
+        'Portable AI Model Library setup requires an idle, ready Local Engine.',
+      );
+      return;
+    }
+
+    const requestId = ++resourceStorageRequestIdRef.current;
+    setResourceStorageState({ operation: 'PORTABLE', status: 'SELECTING', storage });
+    setHeaderHelpMessage(
+      `Preparing portable AI model storage at ${storage.portableAiModelLibraryPath}.`,
+    );
+    const result = await client.usePortableAiModelLibrary();
+
+    if (resourceStorageRequestIdRef.current !== requestId) {
+      return;
+    }
+
+    if (!result.ok) {
+      setResourceStorageState({ message: result.message, status: 'ERROR', storage });
+      setHeaderHelpMessage(result.message);
+      return;
+    }
+
+    setResourceStorageState({ status: 'READY', storage: result.storage });
+    setIsResourceStorageSetupDismissed(true);
+    setHeaderHelpMessage(
+      result.storage.aiModelLibrary.status === 'READY'
+        ? `Portable AI Model Library ready: ${result.storage.aiModelLibrary.rootPath}`
+        : 'AI Model Library remains unset.',
+    );
+  }, [engineConnection.activity, engineConnection.lifecycle, resourceStorageState]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -12587,6 +12809,52 @@ export default function App({ engineBootstrap }: { engineBootstrap?: LocalEngine
         projectFileSaveState={projectFileSaveState}
         projectRootState={projectRootState}
       />
+      {projectRootSelectionNotice && (
+        <ProjectRootSelectionNotice
+          notice={projectRootSelectionNotice}
+          onDismiss={clearProjectRootSelectionNotice}
+        />
+      )}
+      {(resourceStorageState.status === 'READY' ||
+        resourceStorageState.status === 'SELECTING' ||
+        resourceStorageState.status === 'ERROR') &&
+        resourceStorageState.storage &&
+        !isResourceStorageSetupDismissed && (
+          <ResourceStorageSetupPanel
+            message={
+              resourceStorageState.status === 'ERROR'
+                ? resourceStorageState.message
+                : undefined
+            }
+            onChoose={() => void handleSelectAiModelLibrary()}
+            onContinueCoreOnly={() => setIsResourceStorageSetupDismissed(true)}
+            onUsePortable={() => void handleUsePortableAiModelLibrary()}
+            selectionOperation={
+              resourceStorageState.status === 'SELECTING'
+                ? resourceStorageState.operation
+                : undefined
+            }
+            selecting={resourceStorageState.status === 'SELECTING'}
+            storage={resourceStorageState.storage}
+          />
+        )}
+      {resourceStorageState.status === 'READY' &&
+        isResourceStorageSetupDismissed && (
+          <button
+            type="button"
+            className="resource-storage-reminder"
+            onClick={() => setIsResourceStorageSetupDismissed(false)}
+          >
+            {resourceStorageState.storage.aiModelLibrary.status === 'READY'
+              ? `AI MODEL STORAGE ${resourceStorageState.storage.aiModelLibrary.mode}`
+              : 'AI MODEL STORAGE NOT SET'}{' '}
+            <span>
+              {resourceStorageState.storage.aiModelLibrary.status === 'READY'
+                ? 'CHANGE'
+                : 'SET UP'}
+            </span>
+          </button>
+        )}
       {isEngineProductionEditingLocked && !isAutoPatchProductionActive && (
         <EngineProductionLock
           connection={engineConnection}
@@ -13037,6 +13305,137 @@ function SafetyConfirmBar({
   );
 }
 
+function ProjectRootSelectionNotice({
+  notice,
+  onDismiss,
+}: {
+  notice: ProjectRootSelectionNoticeState;
+  onDismiss: () => void;
+}) {
+  const titleId = `${notice.id}-title`;
+
+  return (
+    <aside
+      className="project-root-selection-notice"
+      role="alert"
+      aria-labelledby={titleId}
+      aria-live="assertive"
+    >
+      <span className="project-root-selection-notice-led" aria-hidden="true" />
+      <div className="project-root-selection-notice-copy">
+        <span>Project Root</span>
+        <strong id={titleId}>Folder not selected</strong>
+        <p>{notice.message}</p>
+      </div>
+      <button
+        type="button"
+        className="project-root-selection-notice-dismiss"
+        aria-label="Dismiss Project Root notice"
+        onClick={onDismiss}
+      >
+        Dismiss
+      </button>
+    </aside>
+  );
+}
+
+function ResourceStorageSetupPanel({
+  message,
+  onChoose,
+  onContinueCoreOnly,
+  onUsePortable,
+  selectionOperation,
+  selecting,
+  storage,
+}: {
+  message?: string;
+  onChoose: () => void;
+  onContinueCoreOnly: () => void;
+  onUsePortable: () => void;
+  selectionOperation?: 'EXTERNAL' | 'PORTABLE';
+  selecting: boolean;
+  storage: LocalEngineResourceStorage;
+}) {
+  const configuredLibrary =
+    storage.aiModelLibrary.status === 'READY' ? storage.aiModelLibrary : undefined;
+  const fixedResources = [
+    ['SoundFonts', storage.fixedResources.soundFonts.path],
+    ['FluidSynth', storage.fixedResources.fluidSynthRuntime.path],
+    ['Basic Pitch', storage.fixedResources.basicPitchRuntime.path],
+    ['Default AI models', storage.portableAiModelLibraryPath],
+  ] as const;
+
+  return (
+    <section
+      className="resource-storage-setup-shell"
+      aria-labelledby="resource-storage-setup-title"
+    >
+      <div className="resource-storage-setup-panel">
+        <div className="resource-storage-setup-heading">
+          <span>Local Resource Setup</span>
+          <strong id="resource-storage-setup-title">
+            Keep models portable or choose another folder
+          </strong>
+          <p>
+            Stable Audio 3, ACE-Step, and future LoRAs can live beside ElpisDAW.
+            Choose another drive only when you want external model storage.
+          </p>
+          {configuredLibrary && (
+            <p className="resource-storage-current-library">
+              Current: {configuredLibrary.mode} / {configuredLibrary.rootPath}
+            </p>
+          )}
+        </div>
+        <div className="resource-storage-policy">
+          <strong>Portable data — kept across app updates</strong>
+          <p>
+            ElpisDAW manages these folders beside the verified app folder. They
+            are outside the application manifest and must not be replaced by updates.
+          </p>
+          <dl>
+            {fixedResources.map(([label, path]) => (
+              <div key={label}>
+                <dt>{label}</dt>
+                <dd>{path}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+        <div className="resource-storage-setup-note">
+          <span>V0.1</span>
+          <p>
+            This selection creates managed Stable Audio 3 and ACE-Step folders.
+            It also reserves a LoRA folder without enabling unsupported LoRA loading.
+            Downloads still require their own license and integrity checks. Changing
+            the library does not move existing model or LoRA files.
+          </p>
+          {message && <strong role="alert">{message}</strong>}
+        </div>
+        <div className="resource-storage-setup-actions">
+          <button type="button" onClick={onContinueCoreOnly} disabled={selecting}>
+            {configuredLibrary ? 'KEEP CURRENT' : 'CONTINUE CORE ONLY'}
+          </button>
+          <button
+            type="button"
+            className="primary"
+            onClick={onUsePortable}
+            disabled={selecting}
+          >
+            {selectionOperation === 'PORTABLE' ? 'SETTING UP...' : 'USE PORTABLE STORAGE'}
+          </button>
+          <button
+            type="button"
+            onClick={onChoose}
+            disabled={selecting}
+          >
+            {selectionOperation === 'EXTERNAL' ? 'CHOOSING...' : 'CHOOSE ANOTHER FOLDER'}
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function AutoPatchProductionStatusBar({
   state,
   onCancel,
@@ -13336,12 +13735,15 @@ function formatProjectRootPath(state: ProjectRootUiState): string {
 }
 
 function createProjectRootHelpMessage(state: ProjectRootUiState): string {
+  const selectionGuidance =
+    'Choose a new empty folder for this Project or select an existing ElpisDAW Project Root.';
+
   return state.status === 'READY'
-    ? `Project Root: ${state.projectRoot.rootPath}. Choose another Windows directory.`
+    ? `Project Root: ${state.projectRoot.rootPath}. ${selectionGuidance}`
     : state.status === 'UNSET'
-      ? 'Choose one Windows directory for Project JSON and all ElpisDAW-generated files.'
+      ? `${selectionGuidance} ElpisDAW creates managed Project files and subfolders inside it.`
       : state.status === 'ERROR'
-        ? `${state.message} Try Project Root selection again.`
+        ? `${state.message} ${selectionGuidance}`
         : formatProjectRootPath(state);
 }
 

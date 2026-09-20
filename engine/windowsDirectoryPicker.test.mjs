@@ -4,6 +4,7 @@ import { existsSync } from 'node:fs';
 import {
   resolveWindowsDirectoryPickerExecutablePath,
   runPickerProcess,
+  selectWindowsAiModelLibrary,
   selectWindowsProjectRoot,
   WINDOWS_DIRECTORY_PICKER_EXECUTABLE_PATH,
 } from './windowsDirectoryPicker.mjs';
@@ -26,8 +27,9 @@ describe('selectWindowsProjectRoot', () => {
   });
 
   it('runs the native Windows picker and returns the selected path', async () => {
-    const runPicker = vi.fn(async (executablePath) => {
+    const runPicker = vi.fn(async (executablePath, pickerArguments) => {
       expect(executablePath).toBe(WINDOWS_DIRECTORY_PICKER_EXECUTABLE_PATH);
+      expect(pickerArguments).toContain('Select ElpisDAW Project Root');
       return {
         exitCode: 0,
         stderr: '',
@@ -39,6 +41,20 @@ describe('selectWindowsProjectRoot', () => {
       selectWindowsProjectRoot({ platform: 'win32', runPicker }),
     ).resolves.toBe('D:\\HumStudioProjects\\MicTest');
     expect(runPicker).toHaveBeenCalledOnce();
+  });
+
+  it('uses dedicated copy when selecting the large AI Model Library', async () => {
+    const runPicker = vi.fn(async (_executablePath, pickerArguments) => {
+      expect(pickerArguments).toContain('ElpisDAW AI Model Library');
+      expect(pickerArguments.join(' ')).toContain(
+        'Portable data, SoundFonts, and lightweight runtimes remain beside the app.',
+      );
+      return { exitCode: 0, stderr: '', stdout: 'E:\\ElpisDAW Models' };
+    });
+
+    await expect(
+      selectWindowsAiModelLibrary({ platform: 'win32', runPicker }),
+    ).resolves.toBe('E:\\ElpisDAW Models');
   });
 
   it('returns undefined when the picker is canceled', async () => {
