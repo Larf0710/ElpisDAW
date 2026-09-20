@@ -114,6 +114,38 @@ This storage setup does not bypass Provider access, license, integrity, or
 compatibility checks, and the reserved LoRA folder does not imply LoRA runtime
 support.
 
+### Recommended Portable Project Layout
+
+The outer portable folder and optional project-container folder may use any
+names. The following layout keeps replaceable application files, preserved
+product data, and user Projects visibly separate:
+
+```text
+ElpisDAW/
+|-- ElpisDAW-Core/
+|-- ElpisDAW-Data/
+`-- ElpisDAW-Root/
+    |-- Song One/
+    |-- Song Two/
+    `-- Song Three/
+```
+
+`ElpisDAW-Root` is only an optional container in this example. Do not select it
+as the Project Root for multiple songs. Select an individual song folder such
+as `Song One`; each selected Project Root represents one Project. During a
+manual update, replace only `ElpisDAW-Core`. Preserve `ElpisDAW-Data`, every
+Project Root, and their backups. Deleting the entire outer portable folder also
+deletes any Projects stored inside it.
+
+The first Project Root selection derives the Project JSON filename from that
+folder name. Renaming the Project inside ElpisDAW does not rename its folder or
+Project JSON file. Renaming the Project Root folder after the first save is not
+currently migrated automatically and can prevent the remembered Root or saved
+Project JSON from reopening. Choose the folder name before the first save and
+keep it stable. If it was renamed accidentally, close ElpisDAW and restore the
+previous folder name before reopening the Project; do not rename or delete the
+Project JSON independently.
+
 ## Reporting a Compatibility Problem
 
 For a launch, save, restart, security-warning, or Provider compatibility issue,
