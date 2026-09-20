@@ -102,6 +102,14 @@ its terms, and meeting its hardware requirements remain separate user choices.
 Provider compatibility on one GPU or runtime profile does not establish support
 for every configuration.
 
+Choosing AI model storage on first launch creates folders only. It does not
+download model weights or install Provider runtimes. Use the
+[manual Provider setup guide](docs/ElpisDAW_LLM_User_Guide.md#install-optional-ai-providers-manually),
+follow only the linked official upstream instructions, and accept any gated
+model terms yourself. Fully exit ElpisDAW from its tray menu and relaunch it
+after setup; before Provider execution, the Local Engine validates the installed
+revision, files, and runtime profile without downloading or repairing them.
+
 The portable launcher keeps mutable product data in `ElpisDAW-Data` beside the
 verified `ElpisDAW-Core` application folder. After ElpisDAW is closed, the outer
 directory may be renamed when `ElpisDAW-Core` and `ElpisDAW-Data` remain
@@ -113,6 +121,38 @@ Large AI models default to
 This storage setup does not bypass Provider access, license, integrity, or
 compatibility checks, and the reserved LoRA folder does not imply LoRA runtime
 support.
+
+### Recommended Portable Project Layout
+
+The outer portable folder and optional project-container folder may use any
+names. The following layout keeps replaceable application files, preserved
+product data, and user Projects visibly separate:
+
+```text
+ElpisDAW/
+|-- ElpisDAW-Core/
+|-- ElpisDAW-Data/
+`-- ElpisDAW-Root/
+    |-- Song One/
+    |-- Song Two/
+    `-- Song Three/
+```
+
+`ElpisDAW-Root` is only an optional container in this example. Do not select it
+as the Project Root for multiple songs. Select an individual song folder such
+as `Song One`; each selected Project Root represents one Project. During a
+manual update, replace only `ElpisDAW-Core`. Preserve `ElpisDAW-Data`, every
+Project Root, and their backups. Deleting the entire outer portable folder also
+deletes any Projects stored inside it.
+
+The first Project Root selection derives the Project JSON filename from that
+folder name. Renaming the Project inside ElpisDAW does not rename its folder or
+Project JSON file. Renaming the Project Root folder after the first save is not
+currently migrated automatically and can prevent the remembered Root or saved
+Project JSON from reopening. Choose the folder name before the first save and
+keep it stable. If it was renamed accidentally, close ElpisDAW and restore the
+previous folder name before reopening the Project; do not rename or delete the
+Project JSON independently.
 
 ## Reporting a Compatibility Problem
 

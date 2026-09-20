@@ -15,11 +15,11 @@ const stylesSource = normalizeSource(
 
 describe('visible resource storage policy', () => {
   it('offers portable-first storage with an external-folder alternative', () => {
-    expect(appSource).toContain('Keep models portable or choose another folder');
+    expect(appSource).toContain('Choose model storage — no download starts here');
     expect(appSource).toContain('USE PORTABLE STORAGE');
     expect(appSource).toContain('CHOOSE ANOTHER FOLDER');
     expect(appSource).toContain("? 'CHANGE'");
-    expect(appSource).toContain('Stable Audio 3, ACE-Step, and future LoRAs');
+    expect(appSource).toContain('user-installed Stable Audio 3');
     expect(appSource).toContain('CONTINUE CORE ONLY');
     expect(appSource).toContain('does not move existing model or LoRA files');
     expect(appSource).toContain('className="resource-storage-current-library"');
@@ -37,5 +37,22 @@ describe('visible resource storage policy', () => {
     expect(appSource).toContain('outside the application manifest');
     expect(stylesSource).toContain('.resource-storage-setup-panel');
     expect(stylesSource).toContain('.resource-storage-reminder');
+  });
+
+  it('makes manual Provider installation explicit and links only to official guidance', () => {
+    expect(appSource).toContain(
+      'It does not download or install models or Provider runtimes.',
+    );
+    expect(appSource).toContain('aria-label="Manual AI Provider setup links"');
+    expect(appSource).toContain(
+      'https://github.com/Larf0710/ElpisDAW/blob/main/docs/ElpisDAW_LLM_User_Guide.md#install-optional-ai-providers-manually',
+    );
+    expect(appSource).toContain(
+      'https://github.com/ace-step/ACE-Step-1.5/blob/v0.1.8/docs/en/INSTALL.md',
+    );
+    expect(appSource).toContain(
+      'https://huggingface.co/stabilityai/stable-audio-3-medium',
+    );
+    expect(stylesSource).toContain('.resource-storage-setup-links');
   });
 });
