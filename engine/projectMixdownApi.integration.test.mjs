@@ -13,6 +13,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { GeneratedArtifactFinalizer } from './generatedArtifactFinalizer.mjs';
 import { ProjectRootAuthority } from './projectRootAuthority.mjs';
+import {
+  ResourceStorageAuthority,
+  resolveDefaultResourceStoragePaths,
+} from './resourceStorageAuthority.mjs';
 import { startLocalEngineServer } from './server.mjs';
 import { createTestRawMixdownPlanV3 } from './projectMixdownTestFixtures.mjs';
 import {
@@ -627,10 +631,17 @@ class FinalizedThenBlockedService {
 }
 
 async function startTestEngine(overrides = {}) {
+  const resourceStorageAuthority = new ResourceStorageAuthority({
+    paths: resolveDefaultResourceStoragePaths({
+      localAppData: await createTemporaryDirectory(),
+      platform: 'win32',
+    }),
+  });
   const engine = await startLocalEngineServer({
     allowedOrigin: ALLOWED_ORIGIN,
     port: 0,
     projectRootAuthority: new ProjectRootAuthority(),
+    resourceStorageAuthority,
     token: LAUNCH_TOKEN,
     ...overrides,
   });

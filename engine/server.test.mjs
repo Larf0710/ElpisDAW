@@ -19,9 +19,18 @@ import { GeneratedArtifactFinalizer } from './generatedArtifactFinalizer.mjs';
 import { AceStepJobExecutor } from './jobs/aceStepJobExecutor.mjs';
 import { GpuJobQueueError } from './jobs/gpuJobQueue.mjs';
 import { StableAudio3JobExecutor } from './jobs/stableAudio3JobExecutor.mjs';
-import { ProjectRootAuthority } from './projectRootAuthority.mjs';
+import {
+  PROJECT_ROOT_MARKER_FILE_NAME,
+  ProjectRootAuthority,
+} from './projectRootAuthority.mjs';
+import {
+  ResourceStorageAuthority,
+  resolveDefaultResourceStoragePaths,
+} from './resourceStorageAuthority.mjs';
 import {
   LOCAL_ENGINE_ACE_STEP_LYRICS_PATH,
+  LOCAL_ENGINE_AI_MODEL_LIBRARY_PORTABLE_PATH,
+  LOCAL_ENGINE_AI_MODEL_LIBRARY_SELECT_PATH,
   LOCAL_ENGINE_AUDIO_FILES_PATH,
   LOCAL_ENGINE_BASIC_PITCH_RUNTIME_PATH,
   LOCAL_ENGINE_GENERATED_AUDIO_AVAILABILITY_PATH,
@@ -33,6 +42,7 @@ import {
   LOCAL_ENGINE_PROJECT_ROOT_SELECT_PATH,
   LOCAL_ENGINE_PROTOCOL_VERSION,
   LOCAL_ENGINE_RECORDINGS_PATH,
+  LOCAL_ENGINE_RESOURCE_STORAGE_PATH,
   LOCAL_ENGINE_SOUNDFONT_AUDITION_PATH,
   LOCAL_ENGINE_SOUNDFONT_LIVE_PREVIEW_PATH,
   LOCAL_ENGINE_SOUNDFONT_PRESETS_PATH,
@@ -59,6 +69,7 @@ import {
   STABLE_AUDIO_3_SAMPLE_RATE,
   STABLE_AUDIO_3_TASK_ID,
 } from '../shared/stableAudio3Protocol.js';
+import { ACE_STEP_SUPPORT_MODEL_REVISION } from './providers/aceStepRuntimeProfile.mjs';
 
 const allowedOrigin = 'http://127.0.0.1:5173';
 const launchToken = 'test-launch-token-that-is-at-least-32-characters';
@@ -190,12 +201,41 @@ describe('Local Engine Health Check', () => {
     });
     await expect(stat(join(selectedPath, 'renders', 'stable-audio-3'))).resolves.toMatchObject({});
     await expect(stat(join(selectedPath, 'soundfonts'))).resolves.toMatchObject({});
+    await expect(stat(join(selectedPath, PROJECT_ROOT_MARKER_FILE_NAME))).resolves.toMatchObject(
+      {},
+    );
 
     const currentResponse = await authenticatedRequest(engine, LOCAL_ENGINE_PROJECT_ROOT_PATH);
     await expect(currentResponse.json()).resolves.toMatchObject({
       rootPath: await realpath(selectedPath),
       status: 'READY',
     });
+  });
+
+  it('rejects a non-empty arbitrary Project Root selection without modifying it', async () => {
+    const selectedPath = await createTemporaryDirectory();
+    await writeFile(join(selectedPath, 'existing-notes.txt'), 'preserve me', 'utf8');
+    const engine = await startTestEngine({ selectProjectRoot: async () => selectedPath });
+
+    const response = await authenticatedRequest(
+      engine,
+      LOCAL_ENGINE_PROJECT_ROOT_SELECT_PATH,
+      { method: 'POST' },
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      code: 'PROJECT_ROOT_SELECTION_FAILED',
+      message:
+        'This folder contains files but is not a recognized ElpisDAW Project Root. Choose a new empty folder or an existing ElpisDAW Project Root.',
+    });
+    await expect(readdir(selectedPath)).resolves.toEqual(['existing-notes.txt']);
+    await expect(readFile(join(selectedPath, 'existing-notes.txt'), 'utf8')).resolves.toBe(
+      'preserve me',
+    );
+
+    const currentResponse = await authenticatedRequest(engine, LOCAL_ENGINE_PROJECT_ROOT_PATH);
+    await expect(currentResponse.json()).resolves.toEqual({ status: 'UNSET' });
   });
 
   it('lists supported Project SoundFonts only after Project Root is ready', async () => {
@@ -307,6 +347,183 @@ describe('Local Engine Health Check', () => {
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ selection: 'CANCELED', status: 'UNSET' });
+  });
+
+  it('keeps lightweight resources app-managed and binds only the AI Model Library', async () => {
+    const localAppData = await createTemporaryDirectory();
+    const modelRoot = await createTemporaryDirectory();
+    const paths = resolveDefaultResourceStoragePaths({ localAppData, platform: 'win32' });
+    const resourceStorageAuthority = new ResourceStorageAuthority({ paths });
+    const providerEnvironment = {};
+    const engine = await startTestEngine({
+      providerEnvironment,
+      resourceStorageAuthority,
+      selectAiModelLibrary: async () => modelRoot,
+    });
+
+    const initialResponse = await authenticatedRequest(
+      engine,
+      LOCAL_ENGINE_RESOURCE_STORAGE_PATH,
+    );
+    expect(initialResponse.status).toBe(200);
+    await expect(initialResponse.json()).resolves.toMatchObject({
+      aiModelLibrary: { status: 'UNSET' },
+      fixedResources: {
+        basicPitchRuntime: { path: paths.basicPitchRuntimePath, policy: 'APP_MANAGED' },
+        fluidSynthRuntime: { path: paths.fluidSynthRuntimePath, policy: 'APP_MANAGED' },
+        soundFonts: { path: paths.soundFontsPath, policy: 'APP_MANAGED' },
+      },
+    });
+
+    const selectionResponse = await authenticatedRequest(
+      engine,
+      LOCAL_ENGINE_AI_MODEL_LIBRARY_SELECT_PATH,
+      { method: 'POST' },
+    );
+    expect(selectionResponse.status).toBe(200);
+    await expect(selectionResponse.json()).resolves.toMatchObject({
+      aiModelLibrary: {
+        directories: {
+          aceStep: join(
+            await realpath(modelRoot),
+            'ace-step',
+            ACE_STEP_SUPPORT_MODEL_REVISION,
+          ),
+          loras: join(await realpath(modelRoot), 'loras'),
+          stableAudio3: join(
+            await realpath(modelRoot),
+            'stable-audio-3',
+            STABLE_AUDIO_3_MODEL_REVISION,
+          ),
+        },
+        mode: 'EXTERNAL',
+        rootPath: await realpath(modelRoot),
+        status: 'READY',
+      },
+      selection: 'SELECTED',
+    });
+    expect(providerEnvironment).toMatchObject({
+      HUMSTUDIO_ACE_STEP_CHECKPOINTS_ROOT: join(
+        await realpath(modelRoot),
+        'ace-step',
+        ACE_STEP_SUPPORT_MODEL_REVISION,
+      ),
+      HUMSTUDIO_STABLE_AUDIO_3_MODEL_ROOT: join(
+        await realpath(modelRoot),
+        'stable-audio-3',
+        STABLE_AUDIO_3_MODEL_REVISION,
+      ),
+    });
+
+    const relocationResponse = await authenticatedRequest(
+      engine,
+      LOCAL_ENGINE_AI_MODEL_LIBRARY_PORTABLE_PATH,
+      { method: 'POST' },
+    );
+    expect(relocationResponse.status).toBe(200);
+    await expect(relocationResponse.json()).resolves.toMatchObject({
+      aiModelLibrary: {
+        mode: 'PORTABLE',
+        rootPath: join(await realpath(localAppData), 'ElpisDAW', 'Models'),
+        status: 'READY',
+      },
+      selection: 'SELECTED',
+    });
+  });
+
+  it('configures the portable AI Model Library without opening a picker', async () => {
+    const dataRoot = await createTemporaryDirectory();
+    const paths = resolveDefaultResourceStoragePaths({ dataRoot, platform: 'win32' });
+    const providerEnvironment = {};
+    const selectAiModelLibrary = vi.fn();
+    const canonicalDataRoot = await realpath(dataRoot);
+    const engine = await startTestEngine({
+      providerEnvironment,
+      resourceStorageAuthority: new ResourceStorageAuthority({ paths }),
+      selectAiModelLibrary,
+    });
+
+    const response = await authenticatedRequest(
+      engine,
+      LOCAL_ENGINE_AI_MODEL_LIBRARY_PORTABLE_PATH,
+      { method: 'POST' },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      aiModelLibrary: {
+        directories: {
+          aceStep: join(
+            canonicalDataRoot,
+            'Models',
+            'ace-step',
+            ACE_STEP_SUPPORT_MODEL_REVISION,
+          ),
+          loras: join(canonicalDataRoot, 'Models', 'loras'),
+          stableAudio3: join(
+            canonicalDataRoot,
+            'Models',
+            'stable-audio-3',
+            STABLE_AUDIO_3_MODEL_REVISION,
+          ),
+        },
+        mode: 'PORTABLE',
+        rootPath: join(canonicalDataRoot, 'Models'),
+        status: 'READY',
+      },
+      selection: 'SELECTED',
+    });
+    expect(selectAiModelLibrary).not.toHaveBeenCalled();
+    expect(providerEnvironment.HUMSTUDIO_STABLE_AUDIO_3_MODEL_ROOT).toBe(
+      join(
+        canonicalDataRoot,
+        'Models',
+        'stable-audio-3',
+        STABLE_AUDIO_3_MODEL_REVISION,
+      ),
+    );
+  });
+
+  it('restores fixed resource directories and protects the application root by default', async () => {
+    const localAppData = await createTemporaryDirectory();
+    const paths = resolveDefaultResourceStoragePaths({ localAppData, platform: 'win32' });
+    const previousLocalAppData = process.env.LOCALAPPDATA;
+    process.env.LOCALAPPDATA = localAppData;
+
+    let engine;
+
+    try {
+      engine = await startLocalEngineServer({
+        allowedOrigin,
+        port: 0,
+        projectRootAuthority: new ProjectRootAuthority(),
+        selectAiModelLibrary: async () => process.cwd(),
+        token: launchToken,
+      });
+      runningEngines.add(engine);
+
+      await expect(access(paths.basicPitchRuntimePath)).resolves.toBeUndefined();
+      await expect(access(paths.fluidSynthRuntimePath)).resolves.toBeUndefined();
+      await expect(access(paths.soundFontsPath)).resolves.toBeUndefined();
+
+      const response = await authenticatedRequest(
+        engine,
+        LOCAL_ENGINE_AI_MODEL_LIBRARY_SELECT_PATH,
+        { method: 'POST' },
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toMatchObject({
+        code: 'AI_MODEL_LIBRARY_SELECTION_FAILED',
+        message: 'AI Model Library must be separate from the ElpisDAW application root.',
+      });
+    } finally {
+      if (previousLocalAppData === undefined) {
+        delete process.env.LOCALAPPDATA;
+      } else {
+        process.env.LOCALAPPDATA = previousLocalAppData;
+      }
+    }
   });
 
   it('saves Project JSON atomically only after a Project Root is ready', async () => {
@@ -1810,10 +2027,18 @@ describe('Production UI integration', () => {
 });
 
 async function startTestEngine(overrides = {}) {
+  const resourceStorageAuthority = new ResourceStorageAuthority({
+    paths: resolveDefaultResourceStoragePaths({
+      localAppData: await createTemporaryDirectory(),
+      platform: 'win32',
+    }),
+  });
   const engine = await startLocalEngineServer({
     allowedOrigin,
     port: 0,
     projectRootAuthority: new ProjectRootAuthority(),
+    providerEnvironment: {},
+    resourceStorageAuthority,
     token: launchToken,
     ...overrides,
   });

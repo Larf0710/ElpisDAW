@@ -20,6 +20,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import {
   ElpisDawPortablePackageError,
+  inspectAuthenticodeSignature,
   materializeElpisDawPortablePackage,
 } from './Materialize-ElpisDawPortablePackage.mjs';
 
@@ -37,6 +38,19 @@ afterEach(async () => {
 });
 
 describe.runIf(process.platform === 'win32')('ElpisDAW portable package materializer', () => {
+  it('executes the native signature inspector and reports WinVerifyTrust status', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'elpisdaw-signature-inspector-'));
+    temporaryDirectories.add(root);
+    const unsignedFilePath = join(root, 'unsigned.exe');
+    await writeFile(unsignedFilePath, 'unsigned fixture\n', 'utf8');
+
+    await expect(inspectAuthenticodeSignature(unsignedFilePath)).resolves.toMatchObject({
+      signerThumbprint: null,
+      status: expect.stringMatching(/^(NotSigned|UnknownError)$/),
+      winTrustStatus: expect.stringMatching(/^0x[0-9A-F]{8}$/),
+    });
+  });
+
   it('materializes one deterministic exact package with notices, SBOM, and evidence', async () => {
     const fixture = await createFixture();
     const first = await materializeFixture(fixture, join(fixture.root, 'first'));
@@ -181,15 +195,21 @@ describe.runIf(process.platform === 'win32')('ElpisDAW portable package material
         'utf8',
       );
       return {
-        certificateNotAfter: '2030-01-01T00:00:00.000Z',
+        authenticodeStatus: 'Valid',
+        certificateNotAfter: '2099-01-01T00:00:00.000Z',
+        certificateNotBefore: '2020-01-01T00:00:00.000Z',
         certificateStore: options.signing.certificateStore,
         certificateThumbprint: options.signing.certificateThumbprint,
+        codeSigningEku: true,
+        signerIssuer: 'CN=Fixture Code Signing CA',
         signerSubject: 'CN=Fixture Code Signing',
         signToolFileName: 'signtool.exe',
         signToolSha256: options.signing.signToolSha256,
         status: 'SIGNED',
         timestamped: true,
         timestampUrl: options.signing.timestampUrl,
+        trustMode: options.signing.trustMode,
+        winTrustStatus: '0x00000000',
       };
     };
 
@@ -199,15 +219,18 @@ describe.runIf(process.platform === 'win32')('ElpisDAW portable package material
 
     expect(signingCalls).toHaveLength(1);
     expect(signingCalls[0].signing.certificateThumbprint).toBe('AB'.repeat(20));
-    expect(signingCalls[0].packageRoot).toMatch(/[\\/]ElpisDAW$/);
+    expect(signingCalls[0].packageRoot).toMatch(/[\\/]ElpisDAW-Core$/);
     expect(signingCalls[0].packageRoot.startsWith(fixture.repositoryPath)).toBe(false);
     expect(result.report.signing).toMatchObject({
       certificateStore: 'current-user',
       certificateThumbprint: 'AB'.repeat(20),
+      authenticodeStatus: 'Valid',
       signerSubject: 'CN=Fixture Code Signing',
       status: 'SIGNED',
       timestamped: true,
       timestampUrl: 'https://timestamp.example.test/',
+      trustMode: 'public-trust',
+      winTrustStatus: '0x00000000',
     });
     expect(await readFile(join(result.packageRoot, 'ElpisDAW.exe'), 'utf8')).toBe(
       'launcher\nsigned\n',
@@ -222,6 +245,146 @@ describe.runIf(process.platform === 'win32')('ElpisDAW portable package material
       await readFile(join(fixture.repositoryPath, 'engine', 'bin', 'ElpisDAW.exe'), 'utf8'),
     ).toBe('launcher\n');
     await assertExactManifest(result.packageRoot);
+  });
+
+  it('labels self-signed preview signatures without claiming public trust', async () => {
+    const fixture = await createFixture();
+    const signToolPath = join(fixture.root, 'sign-tools', 'signtool.exe');
+    await writeFixtureFile(fixture.root, 'sign-tools/signtool.exe', 'fixture sign tool\n');
+    const signing = {
+      certificateStore: 'current-user',
+      certificateThumbprint: 'cd'.repeat(20),
+      signToolPath,
+      signToolSha256: sha256(await readFile(signToolPath)),
+      trustMode: 'self-signed-preview',
+    };
+    fixture.dependencies.signPackageNativeBinaries = async (options) => {
+      await appendFile(join(options.packageRoot, 'ElpisDAW.exe'), 'self-signed\n', 'utf8');
+      await appendFile(
+        join(options.packageRoot, 'native', 'HumStudio.DirectoryPicker.exe'),
+        'self-signed\n',
+        'utf8',
+      );
+      return {
+        authenticodeStatus: 'UnknownError',
+        certificateNotAfter: '2099-01-01T00:00:00.000Z',
+        certificateNotBefore: '2020-01-01T00:00:00.000Z',
+        certificateStore: options.signing.certificateStore,
+        certificateThumbprint: options.signing.certificateThumbprint,
+        codeSigningEku: true,
+        signerIssuer: 'CN=ElpisDAW Self-Signed Preview',
+        signerSubject: 'CN=ElpisDAW Self-Signed Preview',
+        signToolFileName: 'signtool.exe',
+        signToolSha256: options.signing.signToolSha256,
+        status: 'SELF_SIGNED_PREVIEW',
+        timestamped: false,
+        timestampUrl: null,
+        trustMode: options.signing.trustMode,
+        winTrustStatus: '0x800B0109',
+      };
+    };
+
+    const result = await materializeFixture(
+      fixture,
+      join(fixture.root, 'self-signed-preview'),
+      { signing },
+    );
+
+    expect(result.report.signing).toMatchObject({
+      authenticodeStatus: 'UnknownError',
+      certificateThumbprint: 'CD'.repeat(20),
+      signerSubject: 'CN=ElpisDAW Self-Signed Preview',
+      status: 'SELF_SIGNED_PREVIEW',
+      timestamped: false,
+      timestampUrl: null,
+      trustMode: 'self-signed-preview',
+      winTrustStatus: '0x800B0109',
+    });
+    const notice = await readFile(
+      join(result.packageRoot, 'SELF_SIGNED_PREVIEW.txt'),
+      'utf8',
+    );
+    expect(notice).toContain('Windows does not trust this publisher identity by default');
+    expect(notice).toContain('Do not install this certificate into Trusted Root');
+    expect(notice).toContain('CD'.repeat(20));
+    expect(result.manifest.files.map((file) => file.path)).toContain(
+      'SELF_SIGNED_PREVIEW.txt',
+    );
+    await assertExactManifest(result.packageRoot);
+  });
+
+  it('rejects self-signed preview evidence that claims a different issuer', async () => {
+    const fixture = await createFixture();
+    const signToolPath = join(fixture.root, 'sign-tools', 'signtool.exe');
+    await writeFixtureFile(fixture.root, 'sign-tools/signtool.exe', 'fixture sign tool\n');
+    fixture.dependencies.signPackageNativeBinaries = async (options) => ({
+      authenticodeStatus: 'UnknownError',
+      certificateNotAfter: '2099-01-01T00:00:00.000Z',
+      certificateNotBefore: '2020-01-01T00:00:00.000Z',
+      certificateStore: options.signing.certificateStore,
+      certificateThumbprint: options.signing.certificateThumbprint,
+      codeSigningEku: true,
+      signerIssuer: 'CN=Unexpected Issuer',
+      signerSubject: 'CN=ElpisDAW Self-Signed Preview',
+      signToolFileName: 'signtool.exe',
+      signToolSha256: options.signing.signToolSha256,
+      status: 'SELF_SIGNED_PREVIEW',
+      timestamped: false,
+      timestampUrl: null,
+      trustMode: options.signing.trustMode,
+      winTrustStatus: '0x800B0109',
+    });
+    const outputRoot = join(fixture.root, 'rejected-self-signed-preview');
+
+    await expect(
+      materializeFixture(fixture, outputRoot, {
+        signing: {
+          certificateStore: 'current-user',
+          certificateThumbprint: 'ef'.repeat(20),
+          signToolPath,
+          signToolSha256: sha256(await readFile(signToolPath)),
+          trustMode: 'self-signed-preview',
+        },
+      }),
+    ).rejects.toMatchObject({ code: 'NATIVE_SIGNING_EVIDENCE_INVALID' });
+    await expect(access(outputRoot)).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('rejects a self-signed preview whose Authenticode digest does not verify', async () => {
+    const fixture = await createFixture();
+    const signToolPath = join(fixture.root, 'sign-tools', 'signtool.exe');
+    await writeFixtureFile(fixture.root, 'sign-tools/signtool.exe', 'fixture sign tool\n');
+    fixture.dependencies.signPackageNativeBinaries = async (options) => ({
+      authenticodeStatus: 'HashMismatch',
+      certificateNotAfter: '2099-01-01T00:00:00.000Z',
+      certificateNotBefore: '2020-01-01T00:00:00.000Z',
+      certificateStore: options.signing.certificateStore,
+      certificateThumbprint: options.signing.certificateThumbprint,
+      codeSigningEku: true,
+      signerIssuer: 'CN=ElpisDAW Self-Signed Preview',
+      signerSubject: 'CN=ElpisDAW Self-Signed Preview',
+      signToolFileName: 'signtool.exe',
+      signToolSha256: options.signing.signToolSha256,
+      status: 'SELF_SIGNED_PREVIEW',
+      timestamped: false,
+      timestampUrl: null,
+      trustMode: options.signing.trustMode,
+      winTrustStatus: '0x80096010',
+    });
+    const outputRoot = join(fixture.root, 'rejected-tampered-self-signed-preview');
+
+    await expect(
+      materializeFixture(fixture, outputRoot, {
+        signing: {
+          certificateStore: 'current-user',
+          certificateThumbprint: '34'.repeat(20),
+          signToolPath,
+          signToolSha256: sha256(await readFile(signToolPath)),
+          trustMode: 'self-signed-preview',
+        },
+      }),
+    ).rejects.toMatchObject({ code: 'NATIVE_SIGNING_EVIDENCE_INVALID' });
+    await expect(access(outputRoot)).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
   it('rejects incomplete signing evidence and removes staging output', async () => {

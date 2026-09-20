@@ -28,6 +28,10 @@ import {
 } from './projectMixdownTestFixtures.mjs';
 import { ProjectMixdownWorkerClient } from './projectMixdownWorkerClient.mjs';
 import { ProjectRootAuthority } from './projectRootAuthority.mjs';
+import {
+  ResourceStorageAuthority,
+  resolveDefaultResourceStoragePaths,
+} from './resourceStorageAuthority.mjs';
 import { startLocalEngineServer } from './server.mjs';
 
 const ALLOWED_ORIGIN = 'http://127.0.0.1:5173';
@@ -453,10 +457,17 @@ function createPcm16Wave() {
 }
 
 async function startTestEngine(overrides = {}) {
+  const resourceStorageAuthority = new ResourceStorageAuthority({
+    paths: resolveDefaultResourceStoragePaths({
+      localAppData: await createTemporaryDirectory(),
+      platform: 'win32',
+    }),
+  });
   const engine = await startLocalEngineServer({
     allowedOrigin: ALLOWED_ORIGIN,
     port: 0,
     projectRootAuthority: new ProjectRootAuthority(),
+    resourceStorageAuthority,
     token: LAUNCH_TOKEN,
     ...overrides,
   });

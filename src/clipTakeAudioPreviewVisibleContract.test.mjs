@@ -2,7 +2,10 @@ import { readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'vitest';
 
-const appSource = readFileSync(new URL('./App.tsx', import.meta.url), 'utf8');
+const appSource = readFileSync(new URL('./App.tsx', import.meta.url), 'utf8').replace(
+  /\r\n?/g,
+  '\n',
+);
 
 function readComponentSource(startMarker, endMarker) {
   const start = appSource.indexOf(startMarker);

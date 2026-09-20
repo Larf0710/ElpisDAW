@@ -1,20 +1,18 @@
 import { spawn } from 'node:child_process';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 
 import {
   FLUIDSYNTH_RUNTIME_VERSION,
   FLUIDSYNTH_SAMPLE_RATE,
 } from './fluidSynthRuntime.mjs';
+import { resolveDefaultResourceStoragePaths } from './resourceStorageAuthority.mjs';
 
 export const FLUIDSYNTH_LIVE_HOST_START_TIMEOUT_MS = 15_000;
 export const FLUIDSYNTH_LIVE_HOST_STOP_TIMEOUT_MS = 2_000;
 
 const MAX_HOST_OUTPUT_BYTES = 64 * 1024;
-const DEFAULT_HOST_PATH = resolve(
-  dirname(fileURLToPath(import.meta.url)),
-  'bin',
-  'fluidsynth',
+const DEFAULT_HOST_PATH = join(
+  resolveDefaultResourceStoragePaths().fluidSynthRuntimePath,
   FLUIDSYNTH_RUNTIME_VERSION,
   'HumStudio.FluidSynthLiveHost.exe',
 );

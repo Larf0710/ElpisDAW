@@ -3,7 +3,11 @@ import { describe, expect, it, vi } from 'vitest';
 import { createEmptyProject } from './emptyProject';
 import type { LocalEngineSoundFontResource } from './localEngineClient';
 import { createManualMidiClip } from './manualMidiClip';
-import { MidiClipPlaybackCache } from './midiClipPlaybackCache';
+import {
+  hasRequestedMidiClips,
+  hasRequestedSoundFontMidiClips,
+  MidiClipPlaybackCache,
+} from './midiClipPlaybackCache';
 import { savePianoRollTake } from './pianoRollTakeEditing';
 import type { ProjectState } from './types';
 
@@ -20,6 +24,18 @@ const resource: LocalEngineSoundFontResource = Object.freeze({
 });
 
 describe('MidiClipPlaybackCache', () => {
+  it('distinguishes an unassigned requested MIDI Clip from an assigned playback request', () => {
+    const assigned = createAssignedMidiProject();
+    const unassigned = updateClip(assigned, (clip) => ({
+      ...clip,
+      soundFont: undefined,
+    }));
+
+    expect(hasRequestedMidiClips(unassigned)).toBe(true);
+    expect(hasRequestedSoundFontMidiClips(unassigned)).toBe(false);
+    expect(hasRequestedSoundFontMidiClips(assigned)).toBe(true);
+  });
+
   it('renders an assigned MIDI Clip once and reuses the session cache', async () => {
     const project = createAssignedMidiProject();
     const wav = createPcm16Wave(48_000, 48_000);

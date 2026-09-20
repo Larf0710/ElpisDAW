@@ -4,7 +4,28 @@ param()
 $ErrorActionPreference = 'Stop'
 $projectRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $sourcePath = Join-Path $projectRoot 'engine\windows\HumStudio.FluidSynthLiveHost.cs'
-$runtimeDirectory = Join-Path $projectRoot 'engine\bin\fluidsynth\2.5.7'
+$configuredDataRoot = [Environment]::GetEnvironmentVariable('ELPISDAW_DATA_ROOT', 'Process')
+
+if (-not [String]::IsNullOrWhiteSpace($configuredDataRoot)) {
+  if (-not [System.IO.Path]::IsPathRooted($configuredDataRoot)) {
+    throw 'ELPISDAW_DATA_ROOT must contain an absolute path.'
+  }
+
+  $elpisDataRoot = [System.IO.Path]::GetFullPath($configuredDataRoot)
+}
+else {
+  $localAppDataRoot = [Environment]::GetFolderPath(
+    [Environment+SpecialFolder]::LocalApplicationData
+  )
+
+  if ([String]::IsNullOrWhiteSpace($localAppDataRoot)) {
+    throw 'Windows LocalAppData is required for the ElpisDAW FluidSynth Live Host.'
+  }
+
+  $elpisDataRoot = Join-Path $localAppDataRoot 'ElpisDAW'
+}
+
+$runtimeDirectory = Join-Path $elpisDataRoot 'Runtimes\FluidSynth\2.5.7'
 $outputPath = Join-Path $runtimeDirectory 'HumStudio.FluidSynthLiveHost.exe'
 
 if (-not (Test-Path -LiteralPath $sourcePath -PathType Leaf)) {

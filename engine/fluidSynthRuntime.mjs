@@ -1,8 +1,9 @@
 import { spawn } from 'node:child_process';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
+
+import { resolveDefaultResourceStoragePaths } from './resourceStorageAuthority.mjs';
 
 export const FLUIDSYNTH_RUNTIME_VERSION = '2.5.7';
 export const FLUIDSYNTH_RENDER_TIMEOUT_MS = 60_000;
@@ -12,10 +13,8 @@ export const FLUIDSYNTH_PRESET_CATALOG_TIMEOUT_MS = 30_000;
 const MAX_PROCESS_OUTPUT_BYTES = 64 * 1024;
 const MAX_PRESET_CATALOG_OUTPUT_BYTES = 1024 * 1024;
 const MAX_SOUNDFONT_PRESETS = 16_384;
-const DEFAULT_EXECUTABLE_PATH = resolve(
-  dirname(fileURLToPath(import.meta.url)),
-  'bin',
-  'fluidsynth',
+const DEFAULT_EXECUTABLE_PATH = join(
+  resolveDefaultResourceStoragePaths().fluidSynthRuntimePath,
   FLUIDSYNTH_RUNTIME_VERSION,
   'fluidsynth.exe',
 );

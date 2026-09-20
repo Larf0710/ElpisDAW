@@ -36,9 +36,97 @@ import {
 
 const execFile = promisify(execFileCallback);
 const RELEASE_MANIFEST_FILE_NAME = 'release-manifest.json';
+const SELF_SIGNED_PREVIEW_NOTICE_FILE_NAME = 'SELF_SIGNED_PREVIEW.txt';
 const MAXIMUM_NODE_ARCHIVE_BYTES = 128 * 1024 * 1024;
 const MAXIMUM_LICENSE_BYTES = 4 * 1024 * 1024;
 const MAXIMUM_SIGN_TOOL_BYTES = 32 * 1024 * 1024;
+const SIGNING_TRUST_MODES = new Set(['public-trust', 'self-signed-preview']);
+const SELF_SIGNED_AUTHENTICODE_STATUSES = new Set(['NotTrusted', 'UnknownError']);
+const WINTRUST_STATUS_SUCCESS = '0x00000000';
+const WINTRUST_STATUS_UNTRUSTED_ROOT = '0x800B0109';
+const WINTRUST_TYPE_DEFINITION = String.raw`
+using System;
+using System.Runtime.InteropServices;
+
+namespace ElpisDaw
+{
+    public static class WinTrustVerifier
+    {
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        private struct WinTrustFileInfo
+        {
+            public uint cbStruct;
+            [MarshalAs(UnmanagedType.LPWStr)] public string pcwszFilePath;
+            public IntPtr hFile;
+            public IntPtr pgKnownSubject;
+        }
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        private struct WinTrustData
+        {
+            public uint cbStruct;
+            public IntPtr pPolicyCallbackData;
+            public IntPtr pSIPClientData;
+            public uint dwUIChoice;
+            public uint fdwRevocationChecks;
+            public uint dwUnionChoice;
+            public IntPtr pFile;
+            public uint dwStateAction;
+            public IntPtr hWVTStateData;
+            public IntPtr pwszURLReference;
+            public uint dwProvFlags;
+            public uint dwUIContext;
+        }
+
+        [DllImport("wintrust.dll", ExactSpelling = true, SetLastError = false, CharSet = CharSet.Unicode)]
+        private static extern int WinVerifyTrust(
+            IntPtr hwnd,
+            [MarshalAs(UnmanagedType.LPStruct)] Guid actionId,
+            ref WinTrustData data);
+
+        public static string VerifyEmbeddedSignature(string filePath)
+        {
+            var fileInfo = new WinTrustFileInfo
+            {
+                cbStruct = (uint)Marshal.SizeOf(typeof(WinTrustFileInfo)),
+                pcwszFilePath = filePath,
+                hFile = IntPtr.Zero,
+                pgKnownSubject = IntPtr.Zero
+            };
+            IntPtr fileInfoPointer = Marshal.AllocHGlobal(
+                Marshal.SizeOf(typeof(WinTrustFileInfo)));
+
+            try
+            {
+                Marshal.StructureToPtr(fileInfo, fileInfoPointer, false);
+                var data = new WinTrustData
+                {
+                    cbStruct = (uint)Marshal.SizeOf(typeof(WinTrustData)),
+                    pPolicyCallbackData = IntPtr.Zero,
+                    pSIPClientData = IntPtr.Zero,
+                    dwUIChoice = 2,
+                    fdwRevocationChecks = 0,
+                    dwUnionChoice = 1,
+                    pFile = fileInfoPointer,
+                    dwStateAction = 0,
+                    hWVTStateData = IntPtr.Zero,
+                    pwszURLReference = IntPtr.Zero,
+                    dwProvFlags = 0x00001000,
+                    dwUIContext = 0
+                };
+                Guid actionId = new Guid("00AAC56B-CD44-11d0-8CC2-00C04FC295EE");
+                int status = WinVerifyTrust(new IntPtr(-1), actionId, ref data);
+                return "0x" + unchecked((uint)status).ToString("X8");
+            }
+            finally
+            {
+                Marshal.DestroyStructure(fileInfoPointer, typeof(WinTrustFileInfo));
+                Marshal.FreeHGlobal(fileInfoPointer);
+            }
+        }
+    }
+}
+`;
 const ENGINE_RUNTIME_EXTENSIONS = new Set(['.mjs', '.py', '.txt']);
 const UI_RUNTIME_EXTENSIONS = new Set([
   '.css',
@@ -431,19 +519,24 @@ async function validateSigningConfiguration(signing, repositoryPath) {
     return null;
   }
 
-  const keys = [
+  const requiredKeys = [
     'certificateStore',
     'certificateThumbprint',
     'signToolPath',
     'signToolSha256',
-    'timestampUrl',
   ];
+  const allowedKeys = new Set([...requiredKeys, 'timestampUrl', 'trustMode']);
+  const signingKeys = Object.keys(signing);
+  const trustMode = signing.trustMode ?? 'public-trust';
 
   if (
     typeof signing !== 'object' ||
     Array.isArray(signing) ||
-    Object.keys(signing).sort(comparePaths).join('\n') !== keys.sort(comparePaths).join('\n') ||
+    requiredKeys.some((key) => !(key in signing)) ||
+    signingKeys.some((key) => !allowedKeys.has(key)) ||
+    !SIGNING_TRUST_MODES.has(trustMode) ||
     !['current-user', 'local-machine'].includes(signing.certificateStore) ||
+    (trustMode === 'self-signed-preview' && signing.certificateStore !== 'current-user') ||
     typeof signing.signToolPath !== 'string' ||
     !isAbsolute(signing.signToolPath) ||
     typeof signing.signToolSha256 !== 'string' ||
@@ -455,21 +548,28 @@ async function validateSigningConfiguration(signing, repositoryPath) {
   const certificateThumbprint = normalizeCertificateThumbprint(
     signing.certificateThumbprint,
   );
-  let timestampUrl;
+  let timestampUrl = null;
 
-  try {
-    timestampUrl = new URL(signing.timestampUrl);
-  } catch {
-    fail('INVALID_SIGNING_CONFIGURATION', 'The signing timestamp URL is invalid.');
-  }
+  if (trustMode === 'public-trust') {
+    try {
+      timestampUrl = new URL(signing.timestampUrl);
+    } catch {
+      fail('INVALID_SIGNING_CONFIGURATION', 'The signing timestamp URL is invalid.');
+    }
 
-  if (
-    timestampUrl.protocol !== 'https:' ||
-    timestampUrl.username !== '' ||
-    timestampUrl.password !== '' ||
-    timestampUrl.hash !== ''
-  ) {
-    fail('INVALID_SIGNING_CONFIGURATION', 'The signing timestamp URL must be an HTTPS service URL.');
+    if (
+      timestampUrl.protocol !== 'https:' ||
+      timestampUrl.username !== '' ||
+      timestampUrl.password !== '' ||
+      timestampUrl.hash !== ''
+    ) {
+      fail('INVALID_SIGNING_CONFIGURATION', 'The signing timestamp URL must be an HTTPS service URL.');
+    }
+  } else if (signing.timestampUrl !== undefined && signing.timestampUrl !== null) {
+    fail(
+      'INVALID_SIGNING_CONFIGURATION',
+      'Self-signed preview signatures must not claim trusted timestamping.',
+    );
   }
 
   const canonicalSignToolPath = await realpath(resolve(signing.signToolPath)).catch(() =>
@@ -494,11 +594,12 @@ async function validateSigningConfiguration(signing, repositoryPath) {
     certificateThumbprint,
     signToolPath: canonicalSignToolPath,
     signToolSha256: signing.signToolSha256,
-    timestampUrl: timestampUrl.toString(),
+    timestampUrl: timestampUrl?.toString() ?? null,
+    trustMode,
   });
 }
 
-async function inspectAuthenticodeSignature(filePath) {
+export async function inspectAuthenticodeSignature(filePath) {
   const systemRoot = process.env.SystemRoot;
 
   if (!systemRoot || !isAbsolute(systemRoot)) {
@@ -512,65 +613,140 @@ async function inspectAuthenticodeSignature(filePath) {
     'v1.0',
     'powershell.exe',
   );
+  const securityModulePath = join(
+    systemRoot,
+    'System32',
+    'WindowsPowerShell',
+    'v1.0',
+    'Modules',
+    'Microsoft.PowerShell.Security',
+    'Microsoft.PowerShell.Security.psd1',
+  );
   const inspectionScript = [
+    '[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)',
+    'Import-Module -Name $env:ELPISDAW_SECURITY_MODULE_PATH -ErrorAction Stop',
+    'Add-Type -TypeDefinition $env:ELPISDAW_WINTRUST_TYPE_DEFINITION',
     '$signature = Get-AuthenticodeSignature -LiteralPath $env:ELPISDAW_SIGNED_FILE',
-    '$result = [ordered]@{',
-    '  certificateNotAfter = if ($signature.SignerCertificate) { $signature.SignerCertificate.NotAfter.ToUniversalTime().ToString("o") } else { $null }',
-    '  signerSubject = if ($signature.SignerCertificate) { $signature.SignerCertificate.Subject } else { $null }',
-    '  signerThumbprint = if ($signature.SignerCertificate) { $signature.SignerCertificate.Thumbprint } else { $null }',
-    '  status = $signature.Status.ToString()',
-    '  timestamped = [bool]$signature.TimeStamperCertificate',
-    '}',
+    '$certificate = $signature.SignerCertificate',
+    '$winTrustStatus = [ElpisDaw.WinTrustVerifier]::VerifyEmbeddedSignature($env:ELPISDAW_SIGNED_FILE)',
+    '$codeSigningEku = $false',
+    'if ($certificate) { $eku = $certificate.Extensions | Where-Object { $_.Oid.Value -eq "2.5.29.37" } | Select-Object -First 1; if ($eku) { $codeSigningEku = [bool]($eku.EnhancedKeyUsages | Where-Object { $_.Value -eq "1.3.6.1.5.5.7.3.3" }) } }',
+    '$result = [ordered]@{ certificateNotAfter = if ($certificate) { $certificate.NotAfter.ToUniversalTime().ToString("o") } else { $null }; certificateNotBefore = if ($certificate) { $certificate.NotBefore.ToUniversalTime().ToString("o") } else { $null }; codeSigningEku = $codeSigningEku; signerIssuer = if ($certificate) { $certificate.Issuer } else { $null }; signerSubject = if ($certificate) { $certificate.Subject } else { $null }; signerThumbprint = if ($certificate) { $certificate.Thumbprint } else { $null }; status = $signature.Status.ToString(); timestamped = [bool]$signature.TimeStamperCertificate; winTrustStatus = $winTrustStatus }',
     '$result | ConvertTo-Json -Compress',
   ].join('; ');
 
+  let inspection;
+
   try {
-    const { stdout } = await execFile(
+    inspection = await execFile(
       powershellPath,
       ['-NoProfile', '-NonInteractive', '-Command', inspectionScript],
       {
         encoding: 'utf8',
-        env: { ...process.env, ELPISDAW_SIGNED_FILE: filePath },
+        env: {
+          ...process.env,
+          ELPISDAW_SECURITY_MODULE_PATH: securityModulePath,
+          ELPISDAW_SIGNED_FILE: filePath,
+          ELPISDAW_WINTRUST_TYPE_DEFINITION: WINTRUST_TYPE_DEFINITION,
+        },
         maxBuffer: 1024 * 1024,
         timeout: 30_000,
         windowsHide: true,
       },
     );
-    return JSON.parse(stdout);
-  } catch {
-    fail('NATIVE_SIGNATURE_INSPECTION_FAILED', 'A signed native binary could not be inspected.');
+  } catch (error) {
+    const diagnostic = [error?.stderr, error?.stdout, error?.message]
+      .filter((value) => typeof value === 'string' && value.trim() !== '')
+      .join('\n')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 1000);
+    fail(
+      'NATIVE_SIGNATURE_INSPECTION_FAILED',
+      diagnostic
+        ? 'A signed native binary could not be inspected. ' + diagnostic
+        : 'A signed native binary could not be inspected.',
+    );
+  }
+
+  try {
+    return JSON.parse(inspection.stdout);
+  } catch (error) {
+    const diagnostic = [inspection.stderr, error?.message]
+      .filter((value) => typeof value === 'string' && value.trim() !== '')
+      .join('\n')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 1000);
+    fail(
+      'NATIVE_SIGNATURE_INSPECTION_FAILED',
+      'A signed native binary returned invalid inspection evidence. ' + diagnostic,
+    );
   }
 }
 
 function validateSigningEvidence(evidence, signing) {
   const keys = [
+    'authenticodeStatus',
     'certificateNotAfter',
+    'certificateNotBefore',
     'certificateStore',
     'certificateThumbprint',
+    'codeSigningEku',
+    'signerIssuer',
     'signerSubject',
     'signToolFileName',
     'signToolSha256',
     'status',
     'timestamped',
     'timestampUrl',
+    'trustMode',
+    'winTrustStatus',
   ];
+  const certificateNotAfter = Date.parse(evidence?.certificateNotAfter);
+  const certificateNotBefore = Date.parse(evidence?.certificateNotBefore);
+  const expectedStatus = signing.trustMode === 'public-trust'
+    ? 'SIGNED'
+    : 'SELF_SIGNED_PREVIEW';
+  const authenticodeStatusAccepted = signing.trustMode === 'public-trust'
+    ? evidence?.authenticodeStatus === 'Valid'
+    : SELF_SIGNED_AUTHENTICODE_STATUSES.has(evidence?.authenticodeStatus);
+  const timestampAccepted = signing.trustMode === 'public-trust'
+    ? evidence?.timestamped === true && evidence?.timestampUrl === signing.timestampUrl
+    : evidence?.timestamped === false && evidence?.timestampUrl === null;
+  const identityAccepted = signing.trustMode === 'public-trust'
+    ? evidence?.signerSubject !== evidence?.signerIssuer
+    : evidence?.signerSubject === evidence?.signerIssuer;
+  const winTrustStatusAccepted = signing.trustMode === 'public-trust'
+    ? evidence?.winTrustStatus === WINTRUST_STATUS_SUCCESS
+    : evidence?.winTrustStatus === WINTRUST_STATUS_UNTRUSTED_ROOT;
 
   if (
     !evidence ||
     typeof evidence !== 'object' ||
     Array.isArray(evidence) ||
     Object.keys(evidence).sort(comparePaths).join('\n') !== keys.sort(comparePaths).join('\n') ||
-    evidence.status !== 'SIGNED' ||
+    evidence.status !== expectedStatus ||
+    evidence.trustMode !== signing.trustMode ||
+    !authenticodeStatusAccepted ||
     evidence.certificateStore !== signing.certificateStore ||
     evidence.certificateThumbprint !== signing.certificateThumbprint ||
     typeof evidence.certificateNotAfter !== 'string' ||
-    Number.isNaN(Date.parse(evidence.certificateNotAfter)) ||
+    Number.isNaN(certificateNotAfter) ||
+    certificateNotAfter <= Date.now() ||
+    typeof evidence.certificateNotBefore !== 'string' ||
+    Number.isNaN(certificateNotBefore) ||
+    certificateNotBefore > Date.now() ||
+    evidence.codeSigningEku !== true ||
+    typeof evidence.signerIssuer !== 'string' ||
+    evidence.signerIssuer.trim() === '' ||
     typeof evidence.signerSubject !== 'string' ||
     evidence.signerSubject.trim() === '' ||
+    !identityAccepted ||
+    !winTrustStatusAccepted ||
     evidence.signToolFileName !== 'signtool.exe' ||
     evidence.signToolSha256 !== signing.signToolSha256 ||
-    evidence.timestamped !== true ||
-    evidence.timestampUrl !== signing.timestampUrl
+    !timestampAccepted
   ) {
     fail('NATIVE_SIGNING_EVIDENCE_INVALID', 'Native signing evidence is incomplete or inconsistent.');
   }
@@ -585,6 +761,9 @@ async function signPackageNativeBinaries({ packageRoot, signing }) {
   const storeArguments = signing.certificateStore === 'local-machine' ? ['/sm'] : [];
 
   try {
+    const timestampArguments = signing.trustMode === 'public-trust'
+      ? ['/tr', signing.timestampUrl, '/td', 'SHA256']
+      : [];
     await execFile(
       signing.signToolPath,
       [
@@ -594,10 +773,7 @@ async function signPackageNativeBinaries({ packageRoot, signing }) {
         '/sha1',
         signing.certificateThumbprint,
         ...storeArguments,
-        '/tr',
-        signing.timestampUrl,
-        '/td',
-        'SHA256',
+        ...timestampArguments,
         ...targetPaths,
       ],
       {
@@ -608,28 +784,44 @@ async function signPackageNativeBinaries({ packageRoot, signing }) {
       },
     );
 
-    for (const targetPath of targetPaths) {
-      await execFile(signing.signToolPath, ['verify', '/pa', '/all', '/v', targetPath], {
-        encoding: 'utf8',
-        maxBuffer: 4 * 1024 * 1024,
-        timeout: 30_000,
-        windowsHide: true,
-      });
+    if (signing.trustMode === 'public-trust') {
+      for (const targetPath of targetPaths) {
+        await execFile(signing.signToolPath, ['verify', '/pa', '/all', '/v', targetPath], {
+          encoding: 'utf8',
+          maxBuffer: 4 * 1024 * 1024,
+          timeout: 30_000,
+          windowsHide: true,
+        });
+      }
     }
 
     const signatures = await Promise.all(
       targetPaths.map((targetPath) => inspectAuthenticodeSignature(targetPath)),
     );
 
+    const acceptedAuthenticodeStatuses = signing.trustMode === 'public-trust'
+      ? new Set(['Valid'])
+      : SELF_SIGNED_AUTHENTICODE_STATUSES;
+    const expectedTimestamped = signing.trustMode === 'public-trust';
     if (
       signatures.some(
         (signature) =>
-          signature.status !== 'Valid' ||
+          !acceptedAuthenticodeStatuses.has(signature.status) ||
           normalizeCertificateThumbprint(signature.signerThumbprint) !==
             signing.certificateThumbprint ||
-          signature.timestamped !== true,
+          signature.codeSigningEku !== true ||
+          signature.timestamped !== expectedTimestamped ||
+          signature.winTrustStatus !== (
+            signing.trustMode === 'public-trust'
+              ? WINTRUST_STATUS_SUCCESS
+              : WINTRUST_STATUS_UNTRUSTED_ROOT
+          ),
       ) ||
+      (signing.trustMode === 'self-signed-preview' &&
+        signatures.some((signature) => signature.signerSubject !== signature.signerIssuer)) ||
       signatures[0].signerSubject !== signatures[1].signerSubject ||
+      signatures[0].signerIssuer !== signatures[1].signerIssuer ||
+      signatures[0].certificateNotBefore !== signatures[1].certificateNotBefore ||
       signatures[0].certificateNotAfter !== signatures[1].certificateNotAfter
     ) {
       fail('NATIVE_SIGNATURE_VERIFICATION_FAILED', 'Signed native binaries failed Authenticode verification.');
@@ -637,15 +829,21 @@ async function signPackageNativeBinaries({ packageRoot, signing }) {
 
     return validateSigningEvidence(
       {
+        authenticodeStatus: signatures[0].status,
         certificateNotAfter: signatures[0].certificateNotAfter,
+        certificateNotBefore: signatures[0].certificateNotBefore,
         certificateStore: signing.certificateStore,
         certificateThumbprint: signing.certificateThumbprint,
+        codeSigningEku: signatures[0].codeSigningEku,
+        signerIssuer: signatures[0].signerIssuer,
         signerSubject: signatures[0].signerSubject,
         signToolFileName: basename(signing.signToolPath),
         signToolSha256: signing.signToolSha256,
-        status: 'SIGNED',
-        timestamped: true,
+        status: signing.trustMode === 'public-trust' ? 'SIGNED' : 'SELF_SIGNED_PREVIEW',
+        timestamped: expectedTimestamped,
         timestampUrl: signing.timestampUrl,
+        trustMode: signing.trustMode,
+        winTrustStatus: signatures[0].winTrustStatus,
       },
       signing,
     );
@@ -656,6 +854,23 @@ async function signPackageNativeBinaries({ packageRoot, signing }) {
 
     fail('NATIVE_SIGNING_FAILED', 'ElpisDAW native binaries could not be signed and verified.');
   }
+}
+
+function createSelfSignedPreviewNotice(signingEvidence) {
+  return [
+    'ElpisDAW Self-Signed Preview',
+    '',
+    'This preview uses an Authenticode signature from a self-signed certificate.',
+    'Windows does not trust this publisher identity by default, and security warnings or blocks may still appear.',
+    'Do not install this certificate into Trusted Root Certification Authorities or Trusted Publishers.',
+    'Verify the ZIP SHA-256 against the value published through the official ElpisDAW release channel.',
+    '',
+    `Certificate subject: ${signingEvidence.signerSubject}`,
+    `Certificate thumbprint: ${signingEvidence.certificateThumbprint}`,
+    '',
+    'This temporary preview signature is not a corporate or publicly trusted code-signing certificate.',
+    '',
+  ].join('\n');
 }
 
 async function validateMaterializedPackage({ packageRoot, resultFilePath, version }) {
@@ -1168,7 +1383,10 @@ export async function materializeElpisDawPortablePackage({
       fail('NODE_RUNTIME_PROVENANCE_MISMATCH', 'Pinned Node.js runtime provenance changed.');
     }
 
-    const packageRoot = join(stagingRoot, 'ElpisDAW');
+    const packageRoot = join(
+      stagingRoot,
+      ELPISDAW_PORTABLE_PACKAGE.applicationDirectoryName,
+    );
     const evidenceRoot = join(stagingRoot, 'evidence');
     await mkdir(packageRoot, { recursive: true });
     await mkdir(evidenceRoot, { recursive: true });
@@ -1299,6 +1517,14 @@ export async function materializeElpisDawPortablePackage({
         )
       : Object.freeze({ status: 'UNSIGNED_INTERNAL' });
 
+    if (signingEvidence.status === 'SELF_SIGNED_PREVIEW') {
+      await writeFile(
+        join(packageRoot, SELF_SIGNED_PREVIEW_NOTICE_FILE_NAME),
+        createSelfSignedPreviewNotice(signingEvidence),
+        'utf8',
+      );
+    }
+
     const { manifest, serializedManifest } = await createReleaseManifest(
       packageRoot,
       checkedVersion,
@@ -1362,7 +1588,10 @@ export async function materializeElpisDawPortablePackage({
       evidenceRoot: join(canonicalOutputRoot, 'evidence'),
       manifest,
       outputRoot: canonicalOutputRoot,
-      packageRoot: join(canonicalOutputRoot, 'ElpisDAW'),
+      packageRoot: join(
+        canonicalOutputRoot,
+        ELPISDAW_PORTABLE_PACKAGE.applicationDirectoryName,
+      ),
       report,
     };
   } finally {
@@ -1382,6 +1611,7 @@ function parseArguments(args) {
     ['--output-root', 'outputRoot'],
     ['--sign-tool', 'signToolPath'],
     ['--sign-tool-sha256', 'signToolSha256'],
+    ['--signing-trust-mode', 'signingTrustMode'],
     ['--signing-thumbprint', 'certificateThumbprint'],
     ['--source-commit', 'sourceCommit'],
     ['--stability-ai-agreement', 'stabilityAiAgreementPath'],
@@ -1422,6 +1652,7 @@ function parseArguments(args) {
     'signingCertificateStore',
     'signToolPath',
     'signToolSha256',
+    'signingTrustMode',
     'certificateThumbprint',
     'timestampUrl',
   ];
@@ -1434,7 +1665,6 @@ function parseArguments(args) {
       'signToolPath',
       'signToolSha256',
       'certificateThumbprint',
-      'timestampUrl',
     ]) {
       if (options[requiredName] === undefined) {
         fail(
@@ -1444,12 +1674,25 @@ function parseArguments(args) {
       }
     }
 
+    const signingTrustMode = options.signingTrustMode ?? 'public-trust';
+    if (
+      !SIGNING_TRUST_MODES.has(signingTrustMode) ||
+      (signingTrustMode === 'public-trust' && options.timestampUrl === undefined) ||
+      (signingTrustMode === 'self-signed-preview' && options.timestampUrl !== undefined)
+    ) {
+      fail(
+        'INVALID_SIGNING_CONFIGURATION',
+        'Portable native signing mode and timestamp arguments are inconsistent.',
+      );
+    }
+
     options.signing = {
       certificateStore: options.signingCertificateStore ?? 'current-user',
       certificateThumbprint: options.certificateThumbprint,
       signToolPath: options.signToolPath,
       signToolSha256: options.signToolSha256,
       timestampUrl: options.timestampUrl,
+      trustMode: signingTrustMode,
     };
 
     for (const name of signingOptionNames) {

@@ -35,24 +35,71 @@ export async function selectWindowsProjectRoot({
   runPicker = runPickerProcess,
   pickerExecutablePath = resolveWindowsDirectoryPickerExecutablePath(),
 } = {}) {
+  return selectWindowsDirectory({
+    emptyResultMessage: 'Project Root picker returned an empty path.',
+    failureLabel: 'Project Root picker',
+    pickerArguments: [
+      '--window-title',
+      'ElpisDAW Project Root',
+      '--dialog-title',
+      'Select ElpisDAW Project Root',
+      '--owner-message',
+      'Opening the Windows folder picker...\nIf another app is in front, select ElpisDAW Project Root on the taskbar.',
+    ],
+    pickerExecutablePath,
+    platform,
+    runPicker,
+  });
+}
+
+export async function selectWindowsAiModelLibrary({
+  platform = process.platform,
+  runPicker = runPickerProcess,
+  pickerExecutablePath = resolveWindowsDirectoryPickerExecutablePath(),
+} = {}) {
+  return selectWindowsDirectory({
+    emptyResultMessage: 'AI Model Library picker returned an empty path.',
+    failureLabel: 'AI Model Library picker',
+    pickerArguments: [
+      '--window-title',
+      'ElpisDAW AI Model Library',
+      '--dialog-title',
+      'Select ElpisDAW AI Model Library',
+      '--owner-message',
+      'Choose an external location for large ElpisDAW AI models.\nPortable data, SoundFonts, and lightweight runtimes remain beside the app.',
+    ],
+    pickerExecutablePath,
+    platform,
+    runPicker,
+  });
+}
+
+async function selectWindowsDirectory({
+  emptyResultMessage,
+  failureLabel,
+  pickerArguments,
+  pickerExecutablePath,
+  platform,
+  runPicker,
+}) {
   if (platform !== 'win32') {
-    throw new Error('ElpisDAW Project Root selection currently requires Windows.');
+    throw new Error('ElpisDAW directory selection currently requires Windows.');
   }
 
-  const result = await runPicker(pickerExecutablePath);
+  const result = await runPicker(pickerExecutablePath, pickerArguments);
 
   if (result.exitCode === 2) {
     return undefined;
   }
 
   if (result.exitCode !== 0) {
-    throw new Error(result.stderr.trim() || `Project Root picker exited with code ${result.exitCode}.`);
+    throw new Error(result.stderr.trim() || `${failureLabel} exited with code ${result.exitCode}.`);
   }
 
   const selectedPath = result.stdout.trim();
 
   if (!selectedPath) {
-    throw new Error('Project Root picker returned an empty path.');
+    throw new Error(emptyResultMessage);
   }
 
   return selectedPath;

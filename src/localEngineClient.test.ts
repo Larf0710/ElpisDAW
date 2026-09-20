@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   LOCAL_ENGINE_ACE_STEP_LYRICS_PATH,
+  LOCAL_ENGINE_AI_MODEL_LIBRARY_PORTABLE_PATH,
+  LOCAL_ENGINE_AI_MODEL_LIBRARY_SELECT_PATH,
   LOCAL_ENGINE_AUDIO_FILES_PATH,
   LOCAL_ENGINE_BASIC_PITCH_RUNTIME_PATH,
   LOCAL_ENGINE_GENERATED_AUDIO_AVAILABILITY_PATH,
@@ -13,6 +15,7 @@ import {
   LOCAL_ENGINE_PROJECT_ROOT_SELECT_PATH,
   LOCAL_ENGINE_PROTOCOL_VERSION,
   LOCAL_ENGINE_RECORDINGS_PATH,
+  LOCAL_ENGINE_RESOURCE_STORAGE_PATH,
   LOCAL_ENGINE_SOUNDFONT_AUDITION_PATH,
   LOCAL_ENGINE_SOUNDFONT_LIVE_PREVIEW_PATH,
   LOCAL_ENGINE_SOUNDFONT_PRESETS_PATH,
@@ -25,6 +28,7 @@ import {
   parseLocalEngineAceStepLyricsSnapshot,
   parseLocalEngineHealth,
   parseLocalEngineRecordingArtifact,
+  parseLocalEngineResourceStorage,
   parseLocalEngineSoundFontCatalog,
   parseLocalEngineSoundFontPresetCatalog,
   type LocalEngineAceStepJobRequest,
@@ -182,6 +186,100 @@ describe('LocalEngineClient', () => {
       ok: false,
       reason: 'invalid-response',
     });
+  });
+
+  it('reads fixed lightweight storage and selects the large AI Model Library', async () => {
+    const unsetStorage = createResourceStorageBody();
+    const readyStorage = createResourceStorageBody({
+      aiModelLibrary: {
+        configuredAt: '2026-09-11T07:00:00.000Z',
+        directories: {
+          aceStep: 'E:\\ElpisDAW Models\\ace-step',
+          loras: 'E:\\ElpisDAW Models\\loras',
+          stableAudio3: 'E:\\ElpisDAW Models\\stable-audio-3',
+        },
+        mode: 'EXTERNAL',
+        rootPath: 'E:\\ElpisDAW Models',
+        status: 'READY',
+      },
+    });
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json(unsetStorage))
+      .mockResolvedValueOnce(Response.json({ ...readyStorage, selection: 'SELECTED' }));
+    const client = new LocalEngineClient({ baseUrl, fetchImpl, token: launchToken });
+
+    await expect(client.getResourceStorage()).resolves.toMatchObject({
+      ok: true,
+      storage: {
+        aiModelLibrary: { status: 'UNSET' },
+        fixedResources: {
+          soundFonts: { policy: 'APP_MANAGED' },
+        },
+      },
+    });
+    await expect(client.selectAiModelLibrary()).resolves.toMatchObject({
+      ok: true,
+      selection: 'SELECTED',
+      storage: {
+        aiModelLibrary: { rootPath: 'E:\\ElpisDAW Models', status: 'READY' },
+      },
+    });
+    expect(fetchImpl).toHaveBeenNthCalledWith(
+      1,
+      `${baseUrl}${LOCAL_ENGINE_RESOURCE_STORAGE_PATH}`,
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(fetchImpl).toHaveBeenNthCalledWith(
+      2,
+      `${baseUrl}${LOCAL_ENGINE_AI_MODEL_LIBRARY_SELECT_PATH}`,
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
+  it('chooses portable AI model storage without invoking a native directory picker', async () => {
+    const readyStorage = createResourceStorageBody({
+      aiModelLibrary: {
+        configuredAt: '2026-09-12T00:00:00.000Z',
+        directories: {
+          aceStep: 'D:\\ElpisDAW-Data\\Models\\ace-step\\revision',
+          loras: 'D:\\ElpisDAW-Data\\Models\\loras',
+          stableAudio3: 'D:\\ElpisDAW-Data\\Models\\stable-audio-3\\revision',
+        },
+        mode: 'PORTABLE',
+        rootPath: 'D:\\ElpisDAW-Data\\Models',
+        status: 'READY',
+      },
+    });
+    const fetchImpl = vi.fn(async () =>
+      Response.json({ ...readyStorage, selection: 'SELECTED' }),
+    );
+    const client = new LocalEngineClient({ baseUrl, fetchImpl, token: launchToken });
+
+    await expect(client.usePortableAiModelLibrary()).resolves.toMatchObject({
+      ok: true,
+      selection: 'SELECTED',
+      storage: {
+        aiModelLibrary: { mode: 'PORTABLE', status: 'READY' },
+      },
+    });
+    expect(fetchImpl).toHaveBeenCalledWith(
+      `${baseUrl}${LOCAL_ENGINE_AI_MODEL_LIBRARY_PORTABLE_PATH}`,
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
+  it('rejects malformed resource storage boundaries', () => {
+    expect(
+      parseLocalEngineResourceStorage(
+        createResourceStorageBody({
+          fixedResources: {
+            ...createResourceStorageBody().fixedResources,
+            soundFonts: { path: 'C:\\Wrong', policy: 'USER_SELECTED' },
+          },
+        }),
+      ),
+    ).toBeUndefined();
   });
 
   it('reads and validates the Engine-owned GPU Job snapshot', async () => {
@@ -445,6 +543,27 @@ describe('LocalEngineClient', () => {
       `${baseUrl}${LOCAL_ENGINE_PROJECT_ROOT_SELECT_PATH}`,
       expect.objectContaining({ method: 'POST' }),
     );
+  });
+
+  it('preserves the Engine explanation when Project Root selection is rejected', async () => {
+    const message =
+      'This folder contains files but is not a recognized ElpisDAW Project Root. Choose a new empty folder or an existing ElpisDAW Project Root.';
+    const client = new LocalEngineClient({
+      baseUrl,
+      fetchImpl: async () =>
+        Response.json(
+          { code: 'PROJECT_ROOT_SELECTION_FAILED', message },
+          { status: 409 },
+        ),
+      token: launchToken,
+    });
+
+    await expect(client.selectProjectRoot()).resolves.toEqual({
+      message,
+      ok: false,
+      reason: 'http-error',
+      status: 409,
+    });
   });
 
   it('rejects malformed Project Root responses', async () => {
@@ -1352,6 +1471,29 @@ describe('parseLocalEngineRecordingArtifact', () => {
 
 function createHealthResponse(overrides: Record<string, unknown> = {}): Response {
   return Response.json(createHealthBody(overrides));
+}
+
+function createResourceStorageBody(overrides: Record<string, unknown> = {}) {
+  return {
+    aiModelLibrary: { status: 'UNSET' },
+    fixedResources: {
+      basicPitchRuntime: {
+        path: 'D:\\ElpisDAW-Data\\Runtimes\\BasicPitch',
+        policy: 'APP_MANAGED',
+      },
+      fluidSynthRuntime: {
+        path: 'D:\\ElpisDAW-Data\\Runtimes\\FluidSynth',
+        policy: 'APP_MANAGED',
+      },
+      soundFonts: {
+        path: 'D:\\ElpisDAW-Data\\Resources\\SoundFonts',
+        policy: 'APP_MANAGED',
+      },
+    },
+    portableAiModelLibraryPath: 'D:\\ElpisDAW-Data\\Models',
+    policyVersion: 2,
+    ...overrides,
+  };
 }
 
 function createSoundFontCatalog() {

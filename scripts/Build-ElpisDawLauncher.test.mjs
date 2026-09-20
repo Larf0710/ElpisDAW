@@ -2,12 +2,14 @@ import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { execFile, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
+  access,
   appendFile,
   copyFile,
   mkdir,
   mkdtemp,
   readFile,
   readdir,
+  rename,
   rm,
   writeFile,
 } from 'node:fs/promises';
@@ -90,6 +92,19 @@ describe.runIf(process.platform === 'win32')('ElpisDAW native launcher manifest 
     expect(result.text).toBe('READY\n0.1.0-preview.1');
   });
 
+  it('ignores and preserves sibling portable data during package validation', async () => {
+    const fixture = await createPackageFixture();
+    const portableDataRoot = join(dirname(fixture.packageRoot), 'ElpisDAW-Data');
+    const userDataPath = join(portableDataRoot, 'UserData', 'custom-patch-tabs.json');
+    await mkdir(dirname(userDataPath), { recursive: true });
+    await writeFile(userDataPath, '{"preserved":true}\n', 'utf8');
+
+    const result = await validatePackage(fixture.packageRoot, fixture.resultFilePath);
+
+    expect(result.exitCode).toBe(0);
+    await expect(readFile(userDataPath, 'utf8')).resolves.toBe('{"preserved":true}\n');
+  });
+
   it('rejects a package file changed after manifest creation', async () => {
     const fixture = await createPackageFixture();
     await appendFile(join(fixture.packageRoot, 'runtime', 'node.exe'), 'tampered', 'utf8');
@@ -170,16 +185,69 @@ describe.runIf(process.platform === 'win32')('ElpisDAW native launcher manifest 
     expect(result.exitCode).toBe(0);
     expect(result.text).toMatch(/^READY\n0\.1\.0-preview\.1\nENGINE_ORIGIN=http:\/\/127\.0\.0\.1:\d+$/);
     expect(result.text).not.toContain(fixture.packageRoot);
+    await expect(
+      access(join(fixture.portableDataRoot, 'Runtimes', 'BasicPitch')),
+    ).resolves.toBeUndefined();
+    await expect(
+      access(join(fixture.portableDataRoot, 'Runtimes', 'FluidSynth')),
+    ).resolves.toBeUndefined();
+    await expect(
+      access(join(fixture.portableDataRoot, 'Resources', 'SoundFonts')),
+    ).resolves.toBeUndefined();
+    await expect(
+      access(join(fixture.localAppDataRoot, 'ElpisDAW')),
+    ).rejects.toMatchObject({ code: 'ENOENT' });
 
     const engineOrigin = result.text.split('ENGINE_ORIGIN=', 2)[1];
     await expect(
       fetch(`${engineOrigin}/api/v1/health`, { signal: AbortSignal.timeout(2_000) }),
     ).rejects.toThrow();
   }, 30_000);
+
+  it('keeps sibling portable data when the outer directory is renamed', async () => {
+    const fixture = await createRunnablePackageFixture();
+    const environment = {
+      ...process.env,
+      HUMSTUDIO_LOG_LEVEL: 'error',
+      LOCALAPPDATA: fixture.localAppDataRoot,
+    };
+    const firstResult = await runLauncherTest(
+      fixture.packageRoot,
+      fixture.resultFilePath,
+      '--smoke-test',
+      environment,
+    );
+
+    expect(firstResult.exitCode).toBe(0);
+    await writeFile(
+      join(fixture.portableDataRoot, 'rename-sentinel.txt'),
+      'keep\n',
+      'utf8',
+    );
+    await renameDirectoryWithRetry(fixture.outerRoot, fixture.renamedOuterRoot);
+
+    const renamedPackageRoot = join(fixture.renamedOuterRoot, 'ElpisDAW-Core');
+    const renamedDataRoot = join(fixture.renamedOuterRoot, 'ElpisDAW-Data');
+    const secondResult = await runLauncherTest(
+      renamedPackageRoot,
+      join(dirname(fixture.resultFilePath), 'renamed.result'),
+      '--smoke-test',
+      environment,
+    );
+
+    expect(secondResult.exitCode).toBe(0);
+    await expect(
+      readFile(join(renamedDataRoot, 'rename-sentinel.txt'), 'utf8'),
+    ).resolves.toBe('keep\n');
+    await expect(
+      access(join(fixture.localAppDataRoot, 'ElpisDAW')),
+    ).rejects.toMatchObject({ code: 'ENOENT' });
+  }, 30_000);
 });
 
 async function createPackageFixture() {
-  const packageRoot = await createTemporaryDirectory('elpisdaw-launcher-package-');
+  const extractedRoot = await createTemporaryDirectory('elpisdaw-launcher-package-');
+  const packageRoot = join(extractedRoot, 'ElpisDAW-Core');
   const resultRoot = await createTemporaryDirectory('elpisdaw-launcher-result-');
   const files = new Map([
     ['app/engine/server.mjs', Buffer.from('export {};\n')],
@@ -194,6 +262,7 @@ async function createPackageFixture() {
     ['runtime/THIRD_PARTY_NOTICES/node.txt', Buffer.from('Node.js notices fixture\n')],
   ]);
 
+  await mkdir(packageRoot, { recursive: true });
   await copyFile(launcherPath, join(packageRoot, 'ElpisDAW.exe'));
 
   for (const [relativePath, bytes] of files) {
@@ -239,10 +308,13 @@ async function createPackageFixture() {
 }
 
 async function createRunnablePackageFixture() {
-  const packageRoot = await createTemporaryDirectory('elpisdaw-launcher-runtime-package-');
+  const fixtureRoot = await createTemporaryDirectory('elpisdaw-launcher-runtime-package-');
+  const outerRoot = join(fixtureRoot, 'Original Portable Container');
+  const packageRoot = join(outerRoot, 'ElpisDAW-Core');
   const resultRoot = await createTemporaryDirectory('elpisdaw-launcher-runtime-result-');
   const localAppDataRoot = await createTemporaryDirectory('elpisdaw-launcher-local-app-data-');
 
+  await mkdir(packageRoot, { recursive: true });
   await copyFile(launcherPath, join(packageRoot, 'ElpisDAW.exe'));
   await mkdir(join(packageRoot, 'native'), { recursive: true });
   await copyFile(
@@ -309,13 +381,36 @@ async function createRunnablePackageFixture() {
 
   return {
     localAppDataRoot,
+    outerRoot,
     packageRoot,
+    portableDataRoot: join(outerRoot, 'ElpisDAW-Data'),
+    renamedOuterRoot: join(fixtureRoot, 'Renamed Portable Container'),
     resultFilePath: join(resultRoot, 'smoke.result'),
   };
 }
 
 async function validatePackage(packageRoot, resultFilePath) {
   return runLauncherTest(packageRoot, resultFilePath, '--validate-only');
+}
+
+async function renameDirectoryWithRetry(sourcePath, destinationPath) {
+  const deadline = Date.now() + 5_000;
+
+  while (true) {
+    try {
+      await rename(sourcePath, destinationPath);
+      return;
+    } catch (error) {
+      if (
+        !['EACCES', 'EPERM'].includes(error?.code) ||
+        Date.now() >= deadline
+      ) {
+        throw error;
+      }
+
+      await new Promise((resolveDelay) => setTimeout(resolveDelay, 100));
+    }
+  }
 }
 
 async function runLauncherTest(

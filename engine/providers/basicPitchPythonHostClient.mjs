@@ -1,9 +1,10 @@
 import { spawn } from 'node:child_process';
 import { lstat, realpath } from 'node:fs/promises';
-import { isAbsolute } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { PROVIDER_WORKER_PROTOCOL_VERSION } from './providerContract.mjs';
+import { resolveDefaultResourceStoragePaths } from '../resourceStorageAuthority.mjs';
 import {
   BASIC_PITCH_ONNX_RUNTIME_VERSION,
   BASIC_PITCH_PROVIDER_VERSION,
@@ -15,8 +16,11 @@ import {
 const DEFAULT_HOST_SCRIPT_PATH = fileURLToPath(
   new URL('./basicPitchWorkerHost.py', import.meta.url),
 );
-const DEFAULT_PYTHON_PATH = fileURLToPath(
-  new URL('../bin/basic-pitch/0.4.0/Scripts/python.exe', import.meta.url),
+const DEFAULT_PYTHON_PATH = join(
+  resolveDefaultResourceStoragePaths().basicPitchRuntimePath,
+  BASIC_PITCH_PROVIDER_VERSION,
+  'Scripts',
+  'python.exe',
 );
 const MAX_STDOUT_BUFFER_BYTES = 16 * 1024 * 1024;
 const MAX_STDERR_TAIL_BYTES = 16 * 1024;

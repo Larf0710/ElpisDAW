@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url';
 
 import {
   LOCAL_ENGINE_ACE_STEP_LYRICS_PATH,
+  LOCAL_ENGINE_AI_MODEL_LIBRARY_PORTABLE_PATH,
+  LOCAL_ENGINE_AI_MODEL_LIBRARY_SELECT_PATH,
   LOCAL_ENGINE_AUDIO_FILES_PATH,
   LOCAL_ENGINE_BASIC_PITCH_RUNTIME_PATH,
   LOCAL_ENGINE_DEFAULT_PORT,
@@ -22,6 +24,7 @@ import {
   LOCAL_ENGINE_PROJECT_ROOT_SELECT_PATH,
   LOCAL_ENGINE_PROTOCOL_VERSION,
   LOCAL_ENGINE_RECORDINGS_PATH,
+  LOCAL_ENGINE_RESOURCE_STORAGE_PATH,
   LOCAL_ENGINE_SOUNDFONT_AUDITION_PATH,
   LOCAL_ENGINE_SOUNDFONT_LIVE_PREVIEW_PATH,
   LOCAL_ENGINE_SOUNDFONT_PRESETS_PATH,
@@ -66,9 +69,15 @@ import {
 } from './atomicProjectFileStore.mjs';
 import {
   ProjectRootAuthority,
+  ProjectRootSelectionError,
   resolveDefaultProjectRootStateFilePath,
   resolveProjectPath,
 } from './projectRootAuthority.mjs';
+import {
+  ResourceStorageAuthority,
+  resolveDefaultResourceStoragePaths,
+} from './resourceStorageAuthority.mjs';
+import { applyAiModelLibraryRuntimeBinding } from './aiModelLibraryRuntimeBinding.mjs';
 import {
   createDefaultSoundFontBuiltinDefinition,
 } from './defaultSoundFontProvisioner.mjs';
@@ -150,7 +159,10 @@ import {
   SoundFontPresetCatalogService,
 } from './soundFontPresetCatalogService.mjs';
 import { ProductionUiFileServer } from './productionUiFileServer.mjs';
-import { selectWindowsProjectRoot } from './windowsDirectoryPicker.mjs';
+import {
+  selectWindowsAiModelLibrary,
+  selectWindowsProjectRoot,
+} from './windowsDirectoryPicker.mjs';
 
 const MINIMUM_TOKEN_LENGTH = 32;
 const MAX_JOB_REQUEST_BYTES = 65_536;
@@ -180,10 +192,13 @@ export async function startLocalEngineServer({
   }),
   projectFileStore,
   printMixService,
+  providerEnvironment = process.env,
   projectMixdownService,
   projectMixdownWorkerClient,
   uiRootPath,
   recordingArtifactWriter,
+  resourceStorageAuthority,
+  selectAiModelLibrary = selectWindowsAiModelLibrary,
   selectProjectRoot = selectWindowsProjectRoot,
   soundFontAuditionService,
   soundFontCatalog,
@@ -204,6 +219,11 @@ export async function startLocalEngineServer({
     new AudioArtifactFileDeleter({ projectRootAuthority });
   const resolvedBasicPitchRuntimeInspector =
     basicPitchRuntimeInspector ?? new BasicPitchRuntimeInspector();
+  const resolvedResourceStorageAuthority =
+    resourceStorageAuthority ??
+    new ResourceStorageAuthority({
+      applicationRootPath: resolve(fileURLToPath(new URL('..', import.meta.url))),
+    });
   const resolvedProjectFileStore =
     projectFileStore ?? new AtomicProjectFileStore({ projectRootAuthority });
   const resolvedGeneratedArtifactFinalizer =
@@ -319,6 +339,8 @@ export async function startLocalEngineServer({
       : await ProductionUiFileServer.create({ rootPath: uiRootPath });
 
   await projectRootAuthority.restore();
+  const restoredResourceStorage = await resolvedResourceStorageAuthority.restore();
+  applyAiModelLibraryRuntimeBinding(restoredResourceStorage, providerEnvironment);
 
   const requestContext = {
     allowedOrigin: validatedOrigin,
@@ -335,7 +357,10 @@ export async function startLocalEngineServer({
     generatedArtifactFinalizer: resolvedGeneratedArtifactFinalizer,
     gpuJobQueue: resolvedGpuJobQueue,
     projectRootAuthority,
+    providerEnvironment,
     recordingArtifactWriter: resolvedRecordingArtifactWriter,
+    resourceStorageAuthority: resolvedResourceStorageAuthority,
+    selectAiModelLibrary,
     selectProjectRoot,
     soundFontAuditionService: resolvedSoundFontAuditionService,
     soundFontCatalog: resolvedSoundFontCatalog,
@@ -468,6 +493,7 @@ export async function startLocalEngineServer({
     port: address.port,
     close,
     getProjectRootSnapshot: () => projectRootAuthority.getSnapshot(),
+    getResourceStorageSnapshot: () => resolvedResourceStorageAuthority.getSnapshot(),
   });
 }
 
@@ -500,6 +526,9 @@ async function handleRequest(request, response, context) {
     requestUrl.pathname === LOCAL_ENGINE_PROJECT_ROOT_PATH ||
     requestUrl.pathname === LOCAL_ENGINE_PROJECT_ROOT_SELECT_PATH ||
     requestUrl.pathname === LOCAL_ENGINE_RECORDINGS_PATH ||
+    requestUrl.pathname === LOCAL_ENGINE_RESOURCE_STORAGE_PATH ||
+    requestUrl.pathname === LOCAL_ENGINE_AI_MODEL_LIBRARY_PORTABLE_PATH ||
+    requestUrl.pathname === LOCAL_ENGINE_AI_MODEL_LIBRARY_SELECT_PATH ||
     requestUrl.pathname === LOCAL_ENGINE_SOUNDFONT_AUDITION_PATH ||
     requestUrl.pathname === LOCAL_ENGINE_SOUNDFONT_LIVE_PREVIEW_PATH ||
     requestUrl.pathname === LOCAL_ENGINE_SOUNDFONT_PRESETS_PATH ||
@@ -641,6 +670,44 @@ async function handleRequest(request, response, context) {
     }
 
     sendJson(response, 200, context.projectRootAuthority.getSnapshot());
+    return;
+  }
+
+  if (requestUrl.pathname === LOCAL_ENGINE_RESOURCE_STORAGE_PATH) {
+    if (request.method !== 'GET') {
+      sendMethodNotAllowed(response, 'GET, OPTIONS', 'Use GET to inspect resource storage.');
+      return;
+    }
+
+    sendJson(response, 200, context.resourceStorageAuthority.getSnapshot());
+    return;
+  }
+
+  if (requestUrl.pathname === LOCAL_ENGINE_AI_MODEL_LIBRARY_SELECT_PATH) {
+    if (request.method !== 'POST') {
+      sendMethodNotAllowed(
+        response,
+        'POST, OPTIONS',
+        'Use POST to select the AI Model Library.',
+      );
+      return;
+    }
+
+    await handleAiModelLibrarySelection(response, context);
+    return;
+  }
+
+  if (requestUrl.pathname === LOCAL_ENGINE_AI_MODEL_LIBRARY_PORTABLE_PATH) {
+    if (request.method !== 'POST') {
+      sendMethodNotAllowed(
+        response,
+        'POST, OPTIONS',
+        'Use POST to use portable AI Model Library storage.',
+      );
+      return;
+    }
+
+    await handlePortableAiModelLibrarySelection(response, context);
     return;
   }
 
@@ -1197,6 +1264,93 @@ function sendGpuJobError(response, error, fallbackMessage) {
   });
 }
 
+async function handleAiModelLibrarySelection(response, context) {
+  if (context.engineState.activeOperation) {
+    sendJson(response, 409, {
+      code: 'ENGINE_OPERATION_ACTIVE',
+      message: `Local Engine is busy with ${context.engineState.activeOperation}.`,
+    });
+    return;
+  }
+
+  if (hasRootBlockingGpuJobs(context.gpuJobQueue.getSnapshot())) {
+    sendJson(response, 409, {
+      code: 'GPU_JOB_QUEUE_ACTIVE',
+      message: 'Finish or remove pending GPU Jobs before selecting AI Model Library storage.',
+    });
+    return;
+  }
+
+  context.engineState.activity = 'BUSY';
+  context.engineState.activeOperation = 'AI_MODEL_LIBRARY_SELECTION';
+
+  try {
+    const selectedPath = await context.selectAiModelLibrary();
+
+    if (!selectedPath) {
+      sendJson(response, 200, {
+        ...context.resourceStorageAuthority.getSnapshot(),
+        selection: 'CANCELED',
+      });
+      return;
+    }
+
+    const storage = await context.resourceStorageAuthority.configureAiModelLibrary(
+      selectedPath,
+    );
+    applyAiModelLibraryRuntimeBinding(storage, context.providerEnvironment);
+    sendJson(response, 200, { ...storage, selection: 'SELECTED' });
+  } catch (error) {
+    sendJson(response, 400, {
+      code: 'AI_MODEL_LIBRARY_SELECTION_FAILED',
+      message:
+        error instanceof Error ? error.message : 'AI Model Library selection failed.',
+    });
+  } finally {
+    context.engineState.activity = 'IDLE';
+    context.engineState.activeOperation = undefined;
+  }
+}
+
+async function handlePortableAiModelLibrarySelection(response, context) {
+  if (context.engineState.activeOperation) {
+    sendJson(response, 409, {
+      code: 'ENGINE_OPERATION_ACTIVE',
+      message: `Local Engine is busy with ${context.engineState.activeOperation}.`,
+    });
+    return;
+  }
+
+  if (hasRootBlockingGpuJobs(context.gpuJobQueue.getSnapshot())) {
+    sendJson(response, 409, {
+      code: 'GPU_JOB_QUEUE_ACTIVE',
+      message: 'Finish or remove pending GPU Jobs before configuring AI Model Library storage.',
+    });
+    return;
+  }
+
+  context.engineState.activity = 'BUSY';
+  context.engineState.activeOperation = 'AI_MODEL_LIBRARY_CONFIGURATION';
+
+  try {
+    const storage =
+      await context.resourceStorageAuthority.configurePortableAiModelLibrary();
+    applyAiModelLibraryRuntimeBinding(storage, context.providerEnvironment);
+    sendJson(response, 200, { ...storage, selection: 'SELECTED' });
+  } catch (error) {
+    sendJson(response, 400, {
+      code: 'AI_MODEL_LIBRARY_CONFIGURATION_FAILED',
+      message:
+        error instanceof Error
+          ? error.message
+          : 'Portable AI Model Library configuration failed.',
+    });
+  } finally {
+    context.engineState.activity = 'IDLE';
+    context.engineState.activeOperation = undefined;
+  }
+}
+
 async function handleProjectRootSelection(response, context) {
   if (context.engineState.activeOperation) {
     sendJson(response, 409, {
@@ -1239,7 +1393,7 @@ async function handleProjectRootSelection(response, context) {
     const projectRoot = await context.projectRootAuthority.configure(selectedPath);
     sendJson(response, 200, { ...projectRoot, selection: 'SELECTED' });
   } catch (error) {
-    sendJson(response, 500, {
+    sendJson(response, error instanceof ProjectRootSelectionError ? 409 : 500, {
       code: 'PROJECT_ROOT_SELECTION_FAILED',
       message: error instanceof Error ? error.message : 'Project Root selection failed.',
     });
@@ -2292,11 +2446,22 @@ if (isDirectExecution()) {
     (uiRootPath ? `http://${LOCAL_ENGINE_HOST}:${port}` : LOCAL_ENGINE_DEFAULT_UI_ORIGIN);
 
   try {
-    const builtinSoundFont = await createDefaultSoundFontBuiltinDefinition();
+    const applicationRootPath =
+      process.env.ELPISDAW_APPLICATION_ROOT?.trim() ||
+      resolve(fileURLToPath(new URL('..', import.meta.url)));
+    const resourceStorageAuthority = new ResourceStorageAuthority({
+      applicationRootPath,
+      paths: resolveDefaultResourceStoragePaths(),
+    });
+    const resourceStorage = await resourceStorageAuthority.restore();
+    const builtinSoundFont = await createDefaultSoundFontBuiltinDefinition({
+      runtimeRootPath: resourceStorage.fixedResources.soundFonts.path,
+    });
     const engine = await startLocalEngineServer({
       allowedOrigin,
       builtinSoundFonts: [builtinSoundFont],
       port,
+      resourceStorageAuthority,
       token,
       uiRootPath,
     });

@@ -1,6 +1,6 @@
 # Basic Pitch Runtime
 
-HumStudio's first production Hum-to-MIDI candidate is Basic Pitch 0.4.0 using
+ElpisDAW's first production Hum-to-MIDI candidate is Basic Pitch 0.4.0 using
 its bundled ICASSP 2022 ONNX model and ONNX Runtime CPU execution on Windows.
 
 ## Current status
@@ -119,10 +119,12 @@ Queue, Artifact, and lineage checks passed. This is not a real-vocal quality
 acceptance because the expected melody and source content were not independently
 confirmed.
 
-The Worker uses `HUMSTUDIO_BASIC_PITCH_PYTHON` internally to select the isolated
-runtime. If it is not set, the default future installation location is
-`engine/bin/basic-pitch/0.4.0/Scripts/python.exe`. The Worker never invokes a
-shell and never installs or modifies Python packages.
+The Worker uses `HUMSTUDIO_BASIC_PITCH_PYTHON` as a developer override for the
+isolated runtime. In the portable build, the default installation location is
+`ElpisDAW-Data\Runtimes\BasicPitch\0.4.0\Scripts\python.exe`. Source-development
+launches retain the `%LOCALAPPDATA%\ElpisDAW` fallback when
+`ELPISDAW_DATA_ROOT` is not set.
+The Worker never invokes a shell and never installs or modifies Python packages.
 
 ## Provider contract
 

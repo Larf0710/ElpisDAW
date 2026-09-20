@@ -16,6 +16,9 @@ param(
 
   [switch]$AllowUnsignedNativeBinaries,
 
+  [ValidatePattern('^[0-9A-Fa-f]{40}$')]
+  [string]$ExpectedSelfSignedPreviewThumbprint,
+
   [switch]$RequireToolFreeHost,
 
   [switch]$OccupyDefaultPort,
@@ -27,6 +30,92 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+if (-not ('ElpisDaw.WinTrustVerifier' -as [type])) {
+  Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+
+namespace ElpisDaw
+{
+    public static class WinTrustVerifier
+    {
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        private struct WinTrustFileInfo
+        {
+            public uint cbStruct;
+            [MarshalAs(UnmanagedType.LPWStr)] public string pcwszFilePath;
+            public IntPtr hFile;
+            public IntPtr pgKnownSubject;
+        }
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        private struct WinTrustData
+        {
+            public uint cbStruct;
+            public IntPtr pPolicyCallbackData;
+            public IntPtr pSIPClientData;
+            public uint dwUIChoice;
+            public uint fdwRevocationChecks;
+            public uint dwUnionChoice;
+            public IntPtr pFile;
+            public uint dwStateAction;
+            public IntPtr hWVTStateData;
+            public IntPtr pwszURLReference;
+            public uint dwProvFlags;
+            public uint dwUIContext;
+        }
+
+        [DllImport("wintrust.dll", ExactSpelling = true, SetLastError = false, CharSet = CharSet.Unicode)]
+        private static extern int WinVerifyTrust(
+            IntPtr hwnd,
+            [MarshalAs(UnmanagedType.LPStruct)] Guid actionId,
+            ref WinTrustData data);
+
+        public static string VerifyEmbeddedSignature(string filePath)
+        {
+            var fileInfo = new WinTrustFileInfo
+            {
+                cbStruct = (uint)Marshal.SizeOf(typeof(WinTrustFileInfo)),
+                pcwszFilePath = filePath,
+                hFile = IntPtr.Zero,
+                pgKnownSubject = IntPtr.Zero
+            };
+            IntPtr fileInfoPointer = Marshal.AllocHGlobal(
+                Marshal.SizeOf(typeof(WinTrustFileInfo)));
+
+            try
+            {
+                Marshal.StructureToPtr(fileInfo, fileInfoPointer, false);
+                var data = new WinTrustData
+                {
+                    cbStruct = (uint)Marshal.SizeOf(typeof(WinTrustData)),
+                    pPolicyCallbackData = IntPtr.Zero,
+                    pSIPClientData = IntPtr.Zero,
+                    dwUIChoice = 2,
+                    fdwRevocationChecks = 0,
+                    dwUnionChoice = 1,
+                    pFile = fileInfoPointer,
+                    dwStateAction = 0,
+                    hWVTStateData = IntPtr.Zero,
+                    pwszURLReference = IntPtr.Zero,
+                    dwProvFlags = 0x00001000,
+                    dwUIContext = 0
+                };
+                Guid actionId = new Guid("00AAC56B-CD44-11d0-8CC2-00C04FC295EE");
+                int status = WinVerifyTrust(new IntPtr(-1), actionId, ref data);
+                return "0x" + unchecked((uint)status).ToString("X8");
+            }
+            finally
+            {
+                Marshal.DestroyStructure(fileInfoPointer, typeof(WinTrustFileInfo));
+                Marshal.FreeHGlobal(fileInfoPointer);
+            }
+        }
+    }
+}
+'@
+}
 
 function Assert-Condition {
   param(
@@ -118,7 +207,7 @@ function Test-ArchiveTopology {
         $segments -contains '' -or
         $segments -contains '.' -or
         $segments -contains '..' -or
-        -not $name.StartsWith('ElpisDAW/', [System.StringComparison]::Ordinal)
+        -not $name.StartsWith('ElpisDAW-Core/', [System.StringComparison]::Ordinal)
       )
 
       Assert-Condition (-not $isUnsafe) 'UNSAFE_ARCHIVE_ENTRY' 'The portable ZIP contains an unsafe or unexpected entry path.'
@@ -167,17 +256,30 @@ function Get-SignatureReport {
 
   $signature = Get-AuthenticodeSignature -FilePath $Path
   $subject = $null
+  $issuer = $null
   $thumbprint = $null
+  $codeSigningEku = $false
 
   if ($signature.SignerCertificate) {
     $subject = $signature.SignerCertificate.Subject
+    $issuer = $signature.SignerCertificate.Issuer
     $thumbprint = $signature.SignerCertificate.Thumbprint
+    $eku = $signature.SignerCertificate.Extensions |
+      Where-Object { $_.Oid.Value -eq '2.5.29.37' } |
+      Select-Object -First 1
+    if ($eku) {
+      $codeSigningEku = [bool]($eku.EnhancedKeyUsages |
+        Where-Object { $_.Value -eq '1.3.6.1.5.5.7.3.3' })
+    }
   }
 
   return [ordered]@{
     status = $signature.Status.ToString()
+    codeSigningEku = $codeSigningEku
+    signerIssuer = $issuer
     signerSubject = $subject
     signerThumbprint = $thumbprint
+    winTrustStatus = [ElpisDaw.WinTrustVerifier]::VerifyEmbeddedSignature($Path)
   }
 }
 
@@ -185,10 +287,11 @@ function Assert-AcceptedSignature {
   param(
     [System.Collections.IDictionary]$Report,
     [string]$Label,
-    [bool]$AllowUnsigned
+    [bool]$AllowUnsigned,
+    [string]$ExpectedSelfSignedThumbprint
   )
 
-  if ($Report.status -eq 'Valid') {
+  if ($Report.status -eq 'Valid' -and $Report.winTrustStatus -ceq '0x00000000') {
     return
   }
 
@@ -196,7 +299,32 @@ function Assert-AcceptedSignature {
     return
   }
 
-  throw [System.InvalidOperationException]::new("BINARY_SIGNATURE_REJECTED: $Label Authenticode status is $($Report.status).")
+  if (-not [string]::IsNullOrWhiteSpace($ExpectedSelfSignedThumbprint)) {
+    $normalizedExpectedThumbprint = $ExpectedSelfSignedThumbprint.ToUpperInvariant()
+    $selfSignedStatus = $Report.status -in @('NotTrusted', 'UnknownError')
+    $selfSignedIdentity = (
+      $Report.winTrustStatus -ceq '0x800B0109' -and
+      $Report.codeSigningEku -eq $true -and
+      -not [string]::IsNullOrWhiteSpace([string]$Report.signerSubject) -and
+      [string]::Equals(
+        [string]$Report.signerSubject,
+        [string]$Report.signerIssuer,
+        [System.StringComparison]::Ordinal
+      ) -and
+      [string]::Equals(
+        [string]$Report.signerThumbprint,
+        $normalizedExpectedThumbprint,
+        [System.StringComparison]::OrdinalIgnoreCase
+      )
+    )
+    if ($selfSignedStatus -and $selfSignedIdentity) {
+      return
+    }
+  }
+
+  throw [System.InvalidOperationException]::new(
+    "BINARY_SIGNATURE_REJECTED: $Label Authenticode status is $($Report.status); WinVerifyTrust status is $($Report.winTrustStatus)."
+  )
 }
 
 function Invoke-LauncherCheck {
@@ -244,6 +372,9 @@ function Get-ToolInventory {
 $archiveFullPath = Resolve-AbsolutePath $ArchivePath 'ArchivePath'
 $checksumFullPath = Resolve-AbsolutePath $ChecksumPath 'ChecksumPath'
 $evidenceFullPath = Resolve-AbsolutePath $EvidenceDirectory 'EvidenceDirectory'
+Assert-Condition (
+  -not ($AllowUnsignedNativeBinaries -and -not [string]::IsNullOrWhiteSpace($ExpectedSelfSignedPreviewThumbprint))
+) 'SIGNATURE_POLICY_CONFLICT' 'Unsigned and self-signed preview exceptions cannot be enabled together.'
 
 Assert-Condition (Test-Path -LiteralPath $archiveFullPath -PathType Leaf) 'ARCHIVE_NOT_FOUND' 'The portable ZIP was not found.'
 Assert-Condition (Test-Path -LiteralPath $checksumFullPath -PathType Leaf) 'CHECKSUM_NOT_FOUND' 'SHA256SUMS.txt was not found.'
@@ -308,17 +439,38 @@ try {
   Assert-Condition (
     $topLevelEntries.Count -eq 1 -and
     $topLevelEntries[0].PSIsContainer -and
-    $topLevelEntries[0].Name -ceq 'ElpisDAW'
-  ) 'EXTRACTED_ROOT_INVALID' 'The portable ZIP must extract to one exact ElpisDAW directory.'
+    $topLevelEntries[0].Name -ceq 'ElpisDAW-Core'
+  ) 'EXTRACTED_ROOT_INVALID' 'The portable ZIP must extract to one exact ElpisDAW-Core directory.'
 
   $packageRoot = $topLevelEntries[0].FullName
+  $portableDataRoot = Join-Path $extractionRoot 'ElpisDAW-Data'
   $launcherPath = Join-Path $packageRoot 'ElpisDAW.exe'
   $directoryPickerPath = Join-Path $packageRoot 'native\HumStudio.DirectoryPicker.exe'
   $nodePath = Join-Path $packageRoot 'runtime\node.exe'
   $manifestPath = Join-Path $packageRoot 'release-manifest.json'
+  $selfSignedPreviewNoticePath = Join-Path $packageRoot 'SELF_SIGNED_PREVIEW.txt'
 
   foreach ($requiredPath in @($launcherPath, $directoryPickerPath, $nodePath, $manifestPath)) {
     Assert-Condition (Test-Path -LiteralPath $requiredPath -PathType Leaf) 'REQUIRED_PACKAGE_FILE_MISSING' 'The extracted package is missing a required file.'
+  }
+
+  $selfSignedPreviewMode = -not [string]::IsNullOrWhiteSpace($ExpectedSelfSignedPreviewThumbprint)
+  if ($selfSignedPreviewMode) {
+    Assert-Condition (
+      Test-Path -LiteralPath $selfSignedPreviewNoticePath -PathType Leaf
+    ) 'SELF_SIGNED_PREVIEW_NOTICE_MISSING' 'A self-signed preview must include SELF_SIGNED_PREVIEW.txt.'
+    $selfSignedPreviewNotice = Get-Content -LiteralPath $selfSignedPreviewNoticePath -Raw
+    Assert-Condition (
+      $selfSignedPreviewNotice.Contains($ExpectedSelfSignedPreviewThumbprint.ToUpperInvariant()) -and
+      $selfSignedPreviewNotice.Contains(
+        'Do not install this certificate into Trusted Root Certification Authorities or Trusted Publishers.'
+      )
+    ) 'SELF_SIGNED_PREVIEW_NOTICE_INVALID' 'The self-signed preview notice does not match the expected certificate policy.'
+  }
+  else {
+    Assert-Condition (
+      -not (Test-Path -LiteralPath $selfSignedPreviewNoticePath)
+    ) 'UNEXPECTED_SELF_SIGNED_PREVIEW_NOTICE' 'A trusted or unsigned candidate must not contain a self-signed preview notice.'
   }
 
   $forbiddenFiles = @(Get-ChildItem -LiteralPath $packageRoot -Recurse -Force -File | Where-Object {
@@ -334,9 +486,9 @@ try {
   $launcherSignature = Get-SignatureReport $launcherPath
   $directoryPickerSignature = Get-SignatureReport $directoryPickerPath
   $nodeSignature = Get-SignatureReport $nodePath
-  Assert-AcceptedSignature $launcherSignature 'ElpisDAW.exe' $AllowUnsignedNativeBinaries.IsPresent
-  Assert-AcceptedSignature $directoryPickerSignature 'HumStudio.DirectoryPicker.exe' $AllowUnsignedNativeBinaries.IsPresent
-  Assert-AcceptedSignature $nodeSignature 'runtime/node.exe' $false
+  Assert-AcceptedSignature $launcherSignature 'ElpisDAW.exe' $AllowUnsignedNativeBinaries.IsPresent $ExpectedSelfSignedPreviewThumbprint
+  Assert-AcceptedSignature $directoryPickerSignature 'HumStudio.DirectoryPicker.exe' $AllowUnsignedNativeBinaries.IsPresent $ExpectedSelfSignedPreviewThumbprint
+  Assert-AcceptedSignature $nodeSignature 'runtime/node.exe' $false $null
 
   $nodeVersion = (& $nodePath --version 2>&1 | Out-String).Trim()
   Assert-Condition ($LASTEXITCODE -eq 0) 'NODE_VERSION_FAILED' 'The packaged Node.js runtime did not report its version.'
@@ -354,6 +506,8 @@ try {
   $smokeResult = $null
   $engineOrigin = $null
   $engineReachableAfterSmoke = $null
+  $portableDataRootCreated = $null
+  $localAppDataUntouched = $null
 
   if (-not $SkipEngineSmoke) {
     if ($OccupyDefaultPort) {
@@ -389,11 +543,28 @@ try {
     }
 
     Assert-Condition (-not $engineReachableAfterSmoke) 'ENGINE_PROCESS_SURVIVED' 'The Local Engine remained reachable after launcher smoke shutdown.'
+
+    foreach ($portableResourcePath in @(
+      (Join-Path $portableDataRoot 'Runtimes\BasicPitch'),
+      (Join-Path $portableDataRoot 'Runtimes\FluidSynth'),
+      (Join-Path $portableDataRoot 'Resources\SoundFonts')
+    )) {
+      Assert-Condition (
+        Test-Path -LiteralPath $portableResourcePath -PathType Container
+      ) 'PORTABLE_DATA_ROOT_INVALID' 'The launcher did not create the expected portable resource directories.'
+    }
+
+    $portableDataRootCreated = $true
+    $localAppDataUntouched = -not (Test-Path -LiteralPath (Join-Path $stateRoot 'ElpisDAW'))
+    Assert-Condition $localAppDataUntouched 'LOCAL_APP_DATA_WRITTEN' 'The portable launcher wrote ElpisDAW data under LocalAppData.'
   }
 
   $report = [ordered]@{
     schemaVersion = 1
-    status = if ($SkipEngineSmoke) { 'PASS_WITH_GAPS' } else { 'PASS' }
+    status = if (
+      $SkipEngineSmoke -or
+      -not [string]::IsNullOrWhiteSpace($ExpectedSelfSignedPreviewThumbprint)
+    ) { 'PASS_WITH_GAPS' } else { 'PASS' }
     observedAt = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
     runner = [ordered]@{
       fileName = [System.IO.Path]::GetFileName($PSCommandPath)
@@ -427,6 +598,9 @@ try {
     policy = [ordered]@{
       pathScenario = $PathScenario
       allowUnsignedNativeBinaries = $AllowUnsignedNativeBinaries.IsPresent
+      expectedSelfSignedPreviewThumbprint = if (
+        [string]::IsNullOrWhiteSpace($ExpectedSelfSignedPreviewThumbprint)
+      ) { $null } else { $ExpectedSelfSignedPreviewThumbprint.ToUpperInvariant() }
       requireToolFreeHost = $RequireToolFreeHost.IsPresent
       occupyDefaultPort = $OccupyDefaultPort.IsPresent
       engineSmokeSkipped = $SkipEngineSmoke.IsPresent
@@ -442,15 +616,18 @@ try {
       archiveTopologyAccepted = $true
       exactPackageRootAccepted = $true
       forbiddenDevelopmentArtifactsAbsent = $true
+      selfSignedPreviewNoticeAccepted = if ($selfSignedPreviewMode) { $true } else { $null }
       launcherValidation = $validationResult -replace "`r`n", "`n"
       launcherSmoke = if ($smokeResult) { $smokeResult -replace "`r`n", "`n" } else { $null }
       engineOrigin = $engineOrigin
       engineReachableAfterSmoke = $engineReachableAfterSmoke
+      portableDataRootCreated = $portableDataRootCreated
+      localAppDataUntouched = $localAppDataUntouched
     }
     remainingManualAcceptance = @(
       'Launch with external networking disabled and retain the network-state evidence.',
       'Exercise the Windows notification-area Open ElpisDAW and Exit ElpisDAW actions.',
-      'Exercise Directory Picker, Project save/restart/reopen, Provider fallback, keyboard access, display scaling, upgrade, rollback, and uninstall cases.',
+      'Exercise Directory Picker, portable/external model storage, Project save/restart/reopen, Provider fallback, keyboard access, display scaling, upgrade, rollback, and uninstall cases.',
       'Retain screenshots, logs, and the final clean-machine aggregate.'
     )
   }

@@ -1,7 +1,8 @@
 export const ELPISDAW_PORTABLE_PACKAGE_POLICY_VERSION =
-  '2026-09-08-llm-user-guide-v1';
+  '2026-09-12-core-directory-layout-v1';
 
 export const ELPISDAW_PORTABLE_PACKAGE = Object.freeze({
+  applicationDirectoryName: 'ElpisDAW-Core',
   manifestVersion: 1,
   platform: 'windows-x64',
   product: 'ElpisDAW',

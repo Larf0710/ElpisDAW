@@ -57,6 +57,9 @@ namespace ElpisDAW.Windows
                     ValidateRunningLauncher(package);
                 }
 
+                string portableDataRoot = ResolvePortableDataRoot(package.RootPath);
+                EnsurePortableDataRoot(portableDataRoot);
+
                 string edgePath = options.SmokeTest ? null : ResolveMicrosoftEdgePath();
                 int enginePort = SelectEnginePort(DefaultEnginePort, EnginePortAttempts);
                 string engineOrigin = "http://127.0.0.1:" +
@@ -69,6 +72,7 @@ namespace ElpisDAW.Windows
                         package,
                         enginePort,
                         engineOrigin,
+                        portableDataRoot,
                         token
                     );
 
@@ -104,7 +108,7 @@ namespace ElpisDAW.Windows
                         string launchUrl = engineOrigin +
                             "/#engineBaseUrl=" + Uri.EscapeDataString(engineOrigin) +
                             "&engineToken=" + Uri.EscapeDataString(token);
-                        string browserProfilePath = ResolveBrowserProfilePath();
+                        string browserProfilePath = ResolveBrowserProfilePath(portableDataRoot);
                         Process browserProcess = null;
 
                         try
@@ -234,6 +238,7 @@ namespace ElpisDAW.Windows
             ReleasePackage package,
             int enginePort,
             string engineOrigin,
+            string portableDataRoot,
             string token
         )
         {
@@ -263,6 +268,8 @@ namespace ElpisDAW.Windows
             startInfo.EnvironmentVariables["HUMSTUDIO_ENGINE_TOKEN"] = token;
             startInfo.EnvironmentVariables["HUMSTUDIO_UI_ORIGIN"] = engineOrigin;
             startInfo.EnvironmentVariables["HUMSTUDIO_UI_ROOT"] = uiRootPath;
+            startInfo.EnvironmentVariables["ELPISDAW_APPLICATION_ROOT"] = package.RootPath;
+            startInfo.EnvironmentVariables["ELPISDAW_DATA_ROOT"] = portableDataRoot;
             startInfo.EnvironmentVariables["NODE_ENV"] = "production";
             startInfo.EnvironmentVariables.Remove("NODE_OPTIONS");
 
@@ -497,11 +504,55 @@ namespace ElpisDAW.Windows
             );
         }
 
-        internal static string ResolveBrowserProfilePath()
+        internal static string ResolvePortableDataRoot(string packageRootPath)
         {
+            if (String.IsNullOrWhiteSpace(packageRootPath) || !Path.IsPathRooted(packageRootPath))
+            {
+                throw new InvalidDataException(
+                    "ElpisDAW package root must be absolute before resolving portable data."
+                );
+            }
+
+            string canonicalPackageRoot = Path.GetFullPath(packageRootPath).TrimEnd(
+                Path.DirectorySeparatorChar,
+                Path.AltDirectorySeparatorChar
+            );
+            DirectoryInfo parentDirectory = Directory.GetParent(canonicalPackageRoot);
+
+            if (parentDirectory == null)
+            {
+                throw new InvalidDataException(
+                    "ElpisDAW package root must have an extracted parent directory."
+                );
+            }
+
+            return Path.Combine(parentDirectory.FullName, "ElpisDAW-Data");
+        }
+
+        private static void EnsurePortableDataRoot(string portableDataRoot)
+        {
+            Directory.CreateDirectory(portableDataRoot);
+            FileAttributes attributes = File.GetAttributes(portableDataRoot);
+
+            if ((attributes & FileAttributes.ReparsePoint) != 0)
+            {
+                throw new InvalidDataException(
+                    "ElpisDAW-Data cannot be a symbolic link or junction."
+                );
+            }
+        }
+
+        internal static string ResolveBrowserProfilePath(string portableDataRoot)
+        {
+            if (String.IsNullOrWhiteSpace(portableDataRoot) || !Path.IsPathRooted(portableDataRoot))
+            {
+                throw new InvalidDataException(
+                    "ElpisDAW portable data root must be absolute before resolving browser data."
+                );
+            }
+
             string browserProfilePath = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "ElpisDAW",
+                portableDataRoot,
                 "BrowserProfile"
             );
             Directory.CreateDirectory(browserProfilePath);

@@ -133,6 +133,14 @@ extract the entire ZIP to a normal writable folder, preserve its folder
 structure, and launch `ElpisDAW.exe`. Do not run it from inside the ZIP or move
 only the executable. Follow that artifact's accompanying instructions.
 
+On first launch, ElpisDAW creates `ElpisDAW-Data` beside the extracted
+`ElpisDAW-Core` application folder. After ElpisDAW is closed, the outer
+directory may be renamed as long as `ElpisDAW-Core` and `ElpisDAW-Data` remain
+siblings and move together. Keep the data folder when replacing the Core folder
+during an update. It holds
+browser state, settings, managed lightweight resources, and the default AI
+model library. Large AI models may instead use a user-selected external folder.
+
 The portable Core is designed to supply its own Node.js runtime. A separately
 installed Node.js, pnpm, Git, Python, or .NET SDK is not an end-user prerequisite
 for that package. Optional Provider runtimes and resources are separate.
@@ -228,12 +236,14 @@ does not match this guide, capture its help text before proceeding.
 | `Save to Root` | Writes the Project JSON to the selected ready Project Root | Does not package imported originals or Provider environments |
 | `Open from Root` | Loads the existing Project JSON from the selected Root | Does not make a different Root safe to overwrite |
 
-For durable project work, select `Project Root`, choose a writable folder, and
-wait for its ready status. If it already contains a saved Project, use
-`Open from Root` before saving back to that Root. The guard protects an existing
-Project from being overwritten by an unrelated workspace. Do not work around
-it by deleting its JSON file. For a genuinely separate Project, select a
-different new folder instead.
+For durable project work, select `Project Root`, then choose either a new empty
+folder for this Project or an existing ElpisDAW Project Root. ElpisDAW rejects
+other non-empty folders without adding managed files and shows a temporary
+on-screen notice explaining why the folder was not selected. If the selected Root
+already contains a saved Project, use `Open from Root` before saving back to
+that Root. The guard protects an existing Project from being overwritten by an
+unrelated workspace. Do not work around it by deleting its JSON file. For a
+genuinely separate Project, select a different new empty folder instead.
 
 After editing or producing new audio, use `Save to Root` and confirm the success
 message. The Root's Project file is named `<folder-name>.humstudio.json`.
@@ -256,6 +266,11 @@ stored in folders under Project Root, including:
 - `print-mixes/` and `stem-prints/`: the corresponding print results;
 - `exports/`: engine export resources when used; and
 - `soundfonts/`: user-provided custom SoundFonts.
+
+New Project Roots also contain `.elpisdaw-project-root.json`. This small marker
+identifies the folder as an ElpisDAW Project Root. Do not edit or remove it.
+Legacy Roots are recognized from their valid Project JSON or complete managed
+layout and receive the marker when selected.
 
 Do not assume these folders all contain files in a new Project. Do not rename
 or delete managed files while their Clips or jobs still depend on them.
@@ -288,8 +303,9 @@ your only copy of an important session.
 
 1. Launch ElpisDAW and confirm `ENGINE READY`. If it is offline or mismatched,
    stop here and use section 11.
-2. Open the app menu, choose `Project Root`, and select a new writable practice
-   folder. If you instead chose an existing saved Project, use `Open from Root`.
+2. Open the app menu, choose `Project Root`, and select a new empty writable
+   practice folder. If you instead chose an existing ElpisDAW Project Root, use
+   `Open from Root` when its Project JSON already exists.
 3. Confirm the selected Root is ready. Do not reset a workspace with unsaved work.
 
 Checkpoint: the app opens and the Root is ready. This is not a Provider test.
@@ -623,10 +639,11 @@ profiles, but that is not the same as an end-user model-management UI.
 Do not infer compatibility, hardware fit, or redistribution rights from a
 configurable directory. Use version-matched setup instructions when needed.
 
-Project Root can be chosen now. Separate destination pickers for categories
-such as `recordings/`, `renders/`, and `mixdowns/` are not V0.1 controls and
-should not be promised. FINAL FILER uses the browser's destination handling.
-Future roadmap entries remain plans until implemented and verified.
+Project Root can be chosen now, but the picker accepts only a new empty folder
+or an existing recognized ElpisDAW Project Root. Separate destination pickers
+for categories such as `recordings/`, `renders/`, and `mixdowns/` are not V0.1
+controls and should not be promised. FINAL FILER uses the browser's destination
+handling. Future roadmap entries remain plans until implemented and verified.
 
 This guide is intentionally usable by itself. In the source repository it is
 `docs/ElpisDAW_LLM_User_Guide.md`; the portable packaging workflow includes the

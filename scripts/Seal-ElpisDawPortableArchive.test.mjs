@@ -82,12 +82,12 @@ describe.runIf(process.platform === 'win32')('ElpisDAW portable archive sealer',
       { encoding: 'utf8', windowsHide: true },
     );
     expect(archiveListing.trim().split(/\r?\n/)).toEqual([
-      'ElpisDAW/app/ui/index.html',
-      'ElpisDAW/ElpisDAW.exe',
-      'ElpisDAW/licenses/ElpisDAW-LICENSE.txt',
-      'ElpisDAW/licenses/SBOM.cdx.json',
-      'ElpisDAW/release-manifest.json',
-      'ElpisDAW/runtime/node.exe',
+      'ElpisDAW-Core/app/ui/index.html',
+      'ElpisDAW-Core/ElpisDAW.exe',
+      'ElpisDAW-Core/licenses/ElpisDAW-LICENSE.txt',
+      'ElpisDAW-Core/licenses/SBOM.cdx.json',
+      'ElpisDAW-Core/release-manifest.json',
+      'ElpisDAW-Core/runtime/node.exe',
     ]);
   }, 30_000);
 
@@ -146,7 +146,11 @@ async function createFixture() {
   const root = await mkdtemp(join(tmpdir(), 'elpisdaw-archive-sealer-'));
   temporaryDirectories.add(root);
   const repositoryPath = join(root, 'repository');
-  const packageRoot = join(root, 'package', 'ElpisDAW');
+  const packageRoot = join(
+    root,
+    'package',
+    ELPISDAW_PORTABLE_PACKAGE.applicationDirectoryName,
+  );
   await mkdir(repositoryPath, { recursive: true });
   await writeFixtureFile(packageRoot, 'ElpisDAW.exe', 'fixture launcher\n');
   await writeFixtureFile(packageRoot, 'app/ui/index.html', '<title>ElpisDAW</title>\n');

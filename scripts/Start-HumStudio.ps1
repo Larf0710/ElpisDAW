@@ -234,7 +234,23 @@ $directoryPickerBuildScript = Join-Path $projectRoot 'scripts\Build-WindowsDirec
 & $directoryPickerBuildScript
 
 $fluidSynthLiveHostBuildScript = Join-Path $projectRoot 'scripts\Build-FluidSynthLiveHost.ps1'
-$fluidSynthLibraryPath = Join-Path $projectRoot 'engine\bin\fluidsynth\2.5.7\libfluidsynth-3.dll'
+$configuredDataRoot = [Environment]::GetEnvironmentVariable('ELPISDAW_DATA_ROOT', 'Process')
+
+if (-not [String]::IsNullOrWhiteSpace($configuredDataRoot)) {
+  if (-not [System.IO.Path]::IsPathRooted($configuredDataRoot)) {
+    throw 'ELPISDAW_DATA_ROOT must contain an absolute path.'
+  }
+
+  $elpisDataRoot = [System.IO.Path]::GetFullPath($configuredDataRoot)
+}
+else {
+  $localAppDataRoot = [Environment]::GetFolderPath(
+    [Environment+SpecialFolder]::LocalApplicationData
+  )
+  $elpisDataRoot = Join-Path $localAppDataRoot 'ElpisDAW'
+}
+
+$fluidSynthLibraryPath = Join-Path $elpisDataRoot 'Runtimes\FluidSynth\2.5.7\libfluidsynth-3.dll'
 
 if (Test-Path -LiteralPath $fluidSynthLibraryPath -PathType Leaf) {
   & $fluidSynthLiveHostBuildScript
