@@ -3,8 +3,9 @@
 ElpisDAW is a Windows desktop digital audio workstation for keeping AI-assisted
 music creation editable, inspectable, and under the user's control.
 
-> **Status:** ElpisDAW V0.1 is MVP Feature Complete and Release Acceptance
-> Pending. No public binary or supported end-user release is available yet.
+> **Status:** [ElpisDAW 0.1.0 Preview 1](https://github.com/Larf0710/ElpisDAW/releases/tag/v0.1.0-preview.1)
+> is publicly available as a portable Windows 11 x64 pre-release. It is not a
+> stable release or a one-click installer.
 
 ## Product Direction
 
@@ -45,7 +46,7 @@ AI generation, mixing, final WAV export, and troubleshooting.
 You can also attach that Markdown file to an LLM and ask for a step-by-step
 tutorial in your preferred language. No particular LLM is required. The guide
 is included at `docs/ElpisDAW_LLM_User_Guide.md` by the portable packaging workflow;
-it is not an in-app chat integration or a change to release availability.
+it is not an in-app chat integration.
 
 **LLM explanation accuracy and tutorial quality vary by model, version,
 settings, and conversation context.** Check advice against the actual app and
@@ -72,13 +73,15 @@ This repository contains a reviewed, sanitized public source snapshot with new
 history. The private development history used to prepare V0.1 is not published
 because it contains private development metadata.
 
-The first planned binary is a portable Windows 11 x64 prerelease. A one-click
-installer is deferred until the portable package passes clean-machine, upgrade,
-uninstall, rollback, licensing, and data-safety acceptance.
+The first public binary is
+[ElpisDAW 0.1.0 Preview 1](https://github.com/Larf0710/ElpisDAW/releases/tag/v0.1.0-preview.1),
+a portable Windows 11 x64 pre-release. A one-click installer is deferred until
+the portable package passes broader clean-machine, upgrade, uninstall,
+rollback, licensing, and data-safety acceptance.
 
 ## Windows Preview Compatibility
 
-The planned portable preview targets 64-bit Windows 11. Its Core package is
+The public portable preview targets 64-bit Windows 11. Its Core package is
 designed to include the runtime required to launch ElpisDAW without a separate
 Node.js, pnpm, Git, Python, .NET SDK, or C# compiler installation. Optional AI
 Provider runtimes, model weights, FluidSynth, and SoundFonts are not part of the
@@ -89,12 +92,14 @@ GPU, and optional Provider environment cannot be guaranteed before the software
 is exercised on those systems. Prerelease users may therefore encounter
 machine-specific issues that were not reproduced on the development host.
 
-Current internal native test builds are unsigned. If an explicitly labeled
-unsigned preview is made available in the future, Windows SmartScreen or other
-security software may warn about or block it. Do not permanently disable
-Windows security or antivirus protection to run ElpisDAW. Verify the artifact
-name and published SHA-256 first, retain the exact warning, and report the
-problem instead of applying a broad security exclusion.
+The current public preview uses an Authenticode signature from a self-signed
+preview certificate, not a publicly trusted publisher certificate. Windows
+SmartScreen or other security software may therefore warn about or block it.
+Do not install the preview certificate into Trusted Root Certification
+Authorities or Trusted Publishers, and do not permanently disable Windows
+security or antivirus protection to run ElpisDAW. Verify the artifact name and
+published SHA-256 first, retain the exact warning, and report the problem
+instead of applying a broad security exclusion.
 
 ElpisDAW should explain when an optional Provider is unavailable and keep the
 Core workflow usable. Installing a Provider, obtaining model access, accepting
