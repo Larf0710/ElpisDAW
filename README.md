@@ -37,6 +37,35 @@ External Provider availability, model quality, and redistribution rights are
 separate from ElpisDAW Core readiness. Model weights and Provider environments
 are not included in this repository.
 
+## Interface Tour
+
+From left to right: the Trackline, Main Dock, Piano Roll Dock, and Mixer Dock.
+Click any image to open the full-resolution V0.1 interface screenshot.
+
+<table>
+  <tr>
+    <th>Trackline</th>
+    <th>Main Dock</th>
+    <th>Piano Roll Dock</th>
+    <th>Mixer Dock</th>
+  </tr>
+  <tr>
+    <td><a href="./docs/assets/screenshots/v0.1/trackline.png"><img src="./docs/assets/screenshots/v0.1/trackline.png" alt="ElpisDAW V0.1 Trackline with MIDI Clips arranged on the Timeline" width="100%"></a></td>
+    <td><a href="./docs/assets/screenshots/v0.1/main-dock.png"><img src="./docs/assets/screenshots/v0.1/main-dock.png" alt="ElpisDAW V0.1 Main Dock with the Module Rack, PatchTab editor, and TabFlow routing" width="100%"></a></td>
+    <td><a href="./docs/assets/screenshots/v0.1/piano-roll-dock.png"><img src="./docs/assets/screenshots/v0.1/piano-roll-dock.png" alt="ElpisDAW V0.1 Piano Roll Dock with editable MIDI notes" width="100%"></a></td>
+    <td><a href="./docs/assets/screenshots/v0.1/mixer-dock.png"><img src="./docs/assets/screenshots/v0.1/mixer-dock.png" alt="ElpisDAW V0.1 Mixer Dock with channel controls and fixed inserts" width="100%"></a></td>
+  </tr>
+</table>
+
+### TabFlow Routing
+
+TabFlow connects compatible PatchTabs into an inspectable processing route.
+This detail is cropped directly from the Main Dock screenshot above.
+
+<p align="center">
+  <a href="./docs/assets/screenshots/v0.1/tabflow-routing.png"><img src="./docs/assets/screenshots/v0.1/tabflow-routing.png" alt="ElpisDAW V0.1 TabFlow routing panel" width="615"></a>
+</p>
+
 ## User Guide and LLM Tutorials
 
 Read the standalone [ElpisDAW User Guide and LLM Tutorial Companion](./docs/ElpisDAW_LLM_User_Guide.md)
